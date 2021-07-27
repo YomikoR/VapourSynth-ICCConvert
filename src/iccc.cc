@@ -35,8 +35,8 @@ static const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **
 
         int bps = d->vi->format->bytesPerSample;
 
-        uint16_t *raw_src = vs_aligned_malloc<uint16_t>(width * height * 3 * bps, 32);
-        uint16_t *raw_dst = vs_aligned_malloc<uint16_t>(width * height * 3 * bps, 32);
+        void *raw_src = vs_aligned_malloc(width * height * 3 * bps, 32);
+        void *raw_dst = vs_aligned_malloc(width * height * 3 * bps, 32);
 
         // pack
         p2p_buffer_param p2p_src = {};
