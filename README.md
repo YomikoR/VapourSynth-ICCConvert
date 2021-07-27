@@ -10,7 +10,7 @@ iccc.ICCConvert(clip, simulate_icc, display_icc, intent='absolute')
 
 Input `clip` must have 8-bit or 16-bit RGB format. The output has the same format.
 
-`simulate_icc` is the path to the ICC profile to simulate (e.g. Rec. 709). You may find a few commonly used ones from the source code of [ArgyllCMS](https://www.argyllcms.com/).
+`simulate_icc` is the path to the ICC profile to simulate (e.g. Rec. 709).
 
 `display_icc` is the path to the ICC profile for your monitor.
 
