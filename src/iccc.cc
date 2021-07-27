@@ -1,24 +1,12 @@
-#include <vapoursynth/VapourSynth.h>
-#include <vapoursynth/VSHelper.h>
-#include <lcms2.h>
-#include "libp2p/p2p_api.h"
-#include <string>
-#include <algorithm>
+#include "common.hpp"
 
-typedef struct
-{
-    VSNodeRef *node = nullptr;
-    const VSVideoInfo *vi = nullptr;
-    cmsHTRANSFORM transform = nullptr;
-} icccData;
-
-static void VS_CC icccInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi)
+void VS_CC icccInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi)
 {
     icccData *d = static_cast<icccData *>(*instanceData);
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
-static const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
+const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
 {
     icccData *d = static_cast<icccData *>(*instanceData);
 
@@ -77,7 +65,7 @@ static const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **
     return nullptr;
 }
 
-static void VS_CC icccFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
+void VS_CC icccFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
 {
     icccData *d = static_cast<icccData *>(instanceData);
     vsapi->freeNode(d->node);
@@ -85,7 +73,7 @@ static void VS_CC icccFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
     delete d;
 }
 
-static void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
+void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
 {
     icccData d;
 
@@ -181,6 +169,97 @@ static void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     vsapi->createFilter(in, out, "ICCConvert", icccInit, icccGetFrame, icccFree, fmParallel, 0, data, core);
 }
 
+void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
+{
+    icccData d;
+
+    d.node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d.vi = vsapi->getVideoInfo(d.node);
+
+    if (!isConstantFormat(d.vi))
+    {
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Only constant format input is supported.");
+        return;
+    }
+
+    cmsUInt32Number lcmsDataType;
+    if (d.vi->format->id == pfRGB48) lcmsDataType = TYPE_BGR_16;
+    else if (d.vi->format->id == pfRGB24) lcmsDataType = TYPE_BGR_8;
+    else
+    {
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Currently only vs.RGB48 and vs.RGB24 are well supported.");
+        return;
+    }
+
+    int err;
+
+    cmsHPROFILE lcmsProfileDisplay;
+    const char *dst_profile = vsapi->propGetData(in, "display_icc", 0, &err);
+    if (err || !(lcmsProfileDisplay = cmsOpenProfileFromFile(dst_profile, "r")))
+    {
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input display profile seems to be invalid.");
+        return;
+    }
+
+    cmsHPROFILE lcmsProfileSimulation;
+    const char *src_profile = vsapi->propGetData(in, "playback_csp", 0, &err);
+    bool valid_csp = true;
+    if (err || strcmp(src_profile, "709") == 0)
+    {
+        lcmsProfileSimulation = profile_1886(csp_709, lcmsProfileDisplay);
+    }
+    else if (strcmp(src_profile, "601-525") == 0)
+    {
+        lcmsProfileSimulation = profile_1886(csp_601_525, lcmsProfileDisplay);
+    }
+    else if (strcmp(src_profile, "601-625") == 0)
+    {
+        lcmsProfileSimulation = profile_1886(csp_601_625, lcmsProfileDisplay);
+    }
+    else if (strcmp(src_profile, "srgb") == 0)
+    {
+        lcmsProfileSimulation = cmsCreate_sRGBProfile();
+    }
+    else valid_csp = false;
+    if (!valid_csp)
+    {
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input color space not yet supported.");
+        return;
+    }
+
+    cmsUInt32Number lcmsIntent;
+    const char *intent = vsapi->propGetData(in, "intent", 0, &err);
+    if (err)
+    {
+        lcmsIntent = INTENT_PERCEPTUAL;
+    }
+    else if (strcmp(intent, "perceptual") == 0) lcmsIntent = INTENT_PERCEPTUAL;
+    else if (strcmp(intent, "relative") == 0) lcmsIntent = INTENT_RELATIVE_COLORIMETRIC;
+    else if (strcmp(intent, "saturation") == 0) lcmsIntent = INTENT_SATURATION;
+    else if (strcmp(intent, "absolute") == 0) lcmsIntent = INTENT_ABSOLUTE_COLORIMETRIC;
+    else
+    {
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input ICC intent is not supported.");
+        return;
+    }
+
+    cmsUInt32Number dwFlag = cmsFLAGS_HIGHRESPRECALC;
+
+    d.transform = cmsCreateTransform(lcmsProfileSimulation, lcmsDataType, lcmsProfileDisplay, lcmsDataType, lcmsIntent, dwFlag);
+
+    cmsCloseProfile(lcmsProfileSimulation);
+    cmsCloseProfile(lcmsProfileDisplay);
+
+    icccData *data = new icccData(d);
+
+    vsapi->createFilter(in, out, "ICCPlayback", icccInit, icccGetFrame, icccFree, fmParallel, 0, data, core);
+}
+
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
 {
     configFunc("Yomiko.collection.iccconvert", "iccc", "ICC Conversion", VAPOURSYNTH_API_VERSION, 1, plugin);
@@ -193,4 +272,11 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
         "display_intent:data:opt;"
         "gamut_warning:int:opt",
         icccCreate, nullptr, plugin);
+
+    registerFunc("ICCPlayback",
+        "clip:clip;"
+        "display_icc:data;"
+        "playback_csp:data:opt;"
+        "intent:data:opt",
+        iccpCreate, nullptr, plugin);
 }
