@@ -111,44 +111,70 @@ static void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     int err;
 
-    cmsHPROFILE profile_src;
-    const char *src_profile = vsapi->propGetData(in, "simulate_icc", 0, &err);
-    if (err || !(profile_src = cmsOpenProfileFromFile(src_profile, "r")))
+    cmsHPROFILE lcmsProfileSimulation;
+    const char *src_profile = vsapi->propGetData(in, "simulation_icc", 0, &err);
+    if (err || !(lcmsProfileSimulation = cmsOpenProfileFromFile(src_profile, "r")))
     {
         vsapi->freeNode(d.node);
         vsapi->setError(out, "iccc: Input destination profile seems to be invalid.");
         return;
     }
-    cmsHPROFILE profile_dst;
+    cmsHPROFILE lcmsProfileDisplay;
     const char *dst_profile = vsapi->propGetData(in, "display_icc", 0, &err);
-    if (err || !(profile_dst = cmsOpenProfileFromFile(dst_profile, "r")))
+    if (err || !(lcmsProfileDisplay = cmsOpenProfileFromFile(dst_profile, "r")))
     {
         vsapi->freeNode(d.node);
         vsapi->setError(out, "iccc: Input display profile seems to be invalid.");
         return;
     }
 
-    cmsUInt32Number lcmsIntent;
-    const char *rendering_intent = vsapi->propGetData(in, "intent", 0, &err);
+    cmsUInt32Number lcmsIntentSimulation;
+    const char *sim_intent = vsapi->propGetData(in, "simulation_intent", 0, &err);
     if (err)
     {
-        lcmsIntent = INTENT_ABSOLUTE_COLORIMETRIC;
+        lcmsIntentSimulation = INTENT_RELATIVE_COLORIMETRIC;
     }
-    else if (strcmp(rendering_intent, "perceptual") == 0) lcmsIntent = INTENT_PERCEPTUAL;
-    else if (strcmp(rendering_intent, "relative") == 0) lcmsIntent = INTENT_RELATIVE_COLORIMETRIC;
-    else if (strcmp(rendering_intent, "saturation") == 0) lcmsIntent = INTENT_SATURATION;
-    else if (strcmp(rendering_intent, "absolute") == 0) lcmsIntent = INTENT_ABSOLUTE_COLORIMETRIC;
+    else if (strcmp(sim_intent, "perceptual") == 0) lcmsIntentSimulation = INTENT_PERCEPTUAL;
+    else if (strcmp(sim_intent, "relative") == 0) lcmsIntentSimulation = INTENT_RELATIVE_COLORIMETRIC;
+    else if (strcmp(sim_intent, "saturation") == 0) lcmsIntentSimulation = INTENT_SATURATION;
+    else if (strcmp(sim_intent, "absolute") == 0) lcmsIntentSimulation = INTENT_ABSOLUTE_COLORIMETRIC;
     else
     {
         vsapi->freeNode(d.node);
-        vsapi->setError(out, "iccc: Input ICC intent is not supported.");
+        vsapi->setError(out, "iccc: Input ICC intent for simulation is not supported.");
         return;
     }
 
-    d.transform = cmsCreateTransform(profile_src, lcmsDataType, profile_dst, lcmsDataType, lcmsIntent, cmsFLAGS_HIGHRESPRECALC);
+    cmsUInt32Number lcmsIntentDisplay;
+    const char *dis_intent = vsapi->propGetData(in, "display_intent", 0, &err);
+    if (err)
+    {
+        lcmsIntentDisplay = INTENT_PERCEPTUAL;
+    }
+    else if (strcmp(dis_intent, "perceptual") == 0) lcmsIntentDisplay = INTENT_PERCEPTUAL;
+    else if (strcmp(dis_intent, "relative") == 0) lcmsIntentDisplay = INTENT_RELATIVE_COLORIMETRIC;
+    else if (strcmp(dis_intent, "saturation") == 0) lcmsIntentDisplay = INTENT_SATURATION;
+    else if (strcmp(dis_intent, "absolute") == 0) lcmsIntentDisplay = INTENT_ABSOLUTE_COLORIMETRIC;
+    else
+    {
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input ICC intent for display is not supported.");
+        return;
+    }
 
-    cmsCloseProfile(profile_src);
-    cmsCloseProfile(profile_dst);
+    cmsUInt32Number dwFlag = cmsFLAGS_HIGHRESPRECALC | cmsFLAGS_SOFTPROOFING;
+
+    bool gamut_warning = vsapi->propGetInt(in, "gamut_warning", 0, &err);
+    if (err)
+    {
+        gamut_warning = false;
+    }
+    if (gamut_warning) dwFlag = dwFlag | cmsFLAGS_GAMUTCHECK;
+
+    d.transform = cmsCreateProofingTransform(lcmsProfileSimulation, lcmsDataType, lcmsProfileDisplay, lcmsDataType, lcmsProfileSimulation, lcmsIntentDisplay, lcmsIntentSimulation, dwFlag);
+
+    cmsCloseProfile(lcmsProfileSimulation);
+    cmsCloseProfile(lcmsProfileDisplay);
 
     icccData *data = new icccData(d);
 
@@ -161,8 +187,10 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
 
     registerFunc("ICCConvert",
         "clip:clip;"
-        "simulate_icc:data;"
+        "simulation_icc:data;"
         "display_icc:data;"
-        "intent:data:opt",
+        "simulation_intent:data:opt;"
+        "display_intent:data:opt;"
+        "gamut_warning:int:opt",
         icccCreate, nullptr, plugin);
 }
