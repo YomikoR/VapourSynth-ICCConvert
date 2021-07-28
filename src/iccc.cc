@@ -116,6 +116,14 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         return;
     }
 
+    cmsUInt32Number dwFlag = cmsFLAGS_HIGHRESPRECALC;
+
+    bool soft_proofing = vsapi->propGetInt(in, "soft_proofing", 0, &err);
+    if (err)
+    {
+        soft_proofing = true;
+    }
+
     cmsUInt32Number lcmsIntentSimulation;
     const char *sim_intent = vsapi->propGetData(in, "simulation_intent", 0, &err);
     if (err)
@@ -134,23 +142,24 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
 
     cmsUInt32Number lcmsIntentDisplay;
-    const char *dis_intent = vsapi->propGetData(in, "display_intent", 0, &err);
-    if (err)
+    if (soft_proofing)
     {
-        lcmsIntentDisplay = INTENT_PERCEPTUAL;
+        const char *dis_intent = vsapi->propGetData(in, "display_intent", 0, &err);
+        if (err)
+        {
+            lcmsIntentDisplay = INTENT_PERCEPTUAL;
+        }
+        else if (strcmp(dis_intent, "perceptual") == 0) lcmsIntentDisplay = INTENT_PERCEPTUAL;
+        else if (strcmp(dis_intent, "relative") == 0) lcmsIntentDisplay = INTENT_RELATIVE_COLORIMETRIC;
+        else if (strcmp(dis_intent, "saturation") == 0) lcmsIntentDisplay = INTENT_SATURATION;
+        else if (strcmp(dis_intent, "absolute") == 0) lcmsIntentDisplay = INTENT_ABSOLUTE_COLORIMETRIC;
+        else
+        {
+            vsapi->freeNode(d.node);
+            vsapi->setError(out, "iccc: Input ICC intent for display is not supported.");
+            return;
+        }
     }
-    else if (strcmp(dis_intent, "perceptual") == 0) lcmsIntentDisplay = INTENT_PERCEPTUAL;
-    else if (strcmp(dis_intent, "relative") == 0) lcmsIntentDisplay = INTENT_RELATIVE_COLORIMETRIC;
-    else if (strcmp(dis_intent, "saturation") == 0) lcmsIntentDisplay = INTENT_SATURATION;
-    else if (strcmp(dis_intent, "absolute") == 0) lcmsIntentDisplay = INTENT_ABSOLUTE_COLORIMETRIC;
-    else
-    {
-        vsapi->freeNode(d.node);
-        vsapi->setError(out, "iccc: Input ICC intent for display is not supported.");
-        return;
-    }
-
-    cmsUInt32Number dwFlag = cmsFLAGS_HIGHRESPRECALC | cmsFLAGS_SOFTPROOFING;
 
     bool gamut_warning = vsapi->propGetInt(in, "gamut_warning", 0, &err);
     if (err)
@@ -159,7 +168,22 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     if (gamut_warning) dwFlag = dwFlag | cmsFLAGS_GAMUTCHECK;
 
-    d.transform = cmsCreateProofingTransform(lcmsProfileSimulation, lcmsDataType, lcmsProfileDisplay, lcmsDataType, lcmsProfileSimulation, lcmsIntentDisplay, lcmsIntentSimulation, dwFlag);
+    bool bpc = vsapi->propGetInt(in, "black_point_compensation", 0, &err);
+    if (err)
+    {
+        bpc = false;
+    }
+    if (bpc) dwFlag = dwFlag | cmsFLAGS_BLACKPOINTCOMPENSATION;
+
+    if (soft_proofing)
+    {
+        dwFlag = dwFlag | cmsFLAGS_SOFTPROOFING;
+        d.transform = cmsCreateProofingTransform(lcmsProfileSimulation, lcmsDataType, lcmsProfileDisplay, lcmsDataType, lcmsProfileSimulation, lcmsIntentDisplay, lcmsIntentSimulation, dwFlag);
+    }
+    else
+    {
+        d.transform = cmsCreateTransform(lcmsProfileSimulation, lcmsDataType, lcmsProfileDisplay, lcmsDataType, lcmsIntentSimulation, dwFlag);
+    }
 
     cmsCloseProfile(lcmsProfileSimulation);
     cmsCloseProfile(lcmsProfileDisplay);
@@ -268,9 +292,11 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
         "clip:clip;"
         "simulation_icc:data;"
         "display_icc:data;"
+        "soft_proofing:int:opt;"
         "simulation_intent:data:opt;"
         "display_intent:data:opt;"
-        "gamut_warning:int:opt",
+        "gamut_warning:int:opt;"
+        "black_point_compensation:int:opt",
         icccCreate, nullptr, plugin);
 
     registerFunc("ICCPlayback",
