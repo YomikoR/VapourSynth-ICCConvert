@@ -65,7 +65,7 @@ cmsHPROFILE get_sys_color_profile()
     if (!dpy) return NULL;
 
     // Required if implementing with colord
-    char xrandr_device_name[100];
+    char xrandr_device_name[230];
     Bool found_monitor = False;
 
     Window root = None;
@@ -87,7 +87,7 @@ cmsHPROFILE get_sys_color_profile()
         unsigned int width, height;
         unsigned int border_width, depth;
 
-        if (XGetGeometry(dpy, root, &root, &x, &y, &width, &height, &border_width, &depth))
+        if (!XGetGeometry(dpy, root, &root, &x, &y, &width, &height, &border_width, &depth)) continue;
         if (!root) continue;
 
         unsigned int wx = (x + width) / 2;
@@ -101,7 +101,11 @@ cmsHPROFILE get_sys_color_profile()
             crtc_info = NULL;
             if (!(crtc_info = XRRGetCrtcInfo(dpy, resources, resources->crtcs[i]))) continue;
 
-            if (crtc_info->mode == None || !crtc_info->noutput) continue;
+            if (crtc_info->mode == None || !crtc_info->noutput)
+            {
+                XRRFreeCrtcInfo(crtc_info);
+                continue;
+            }
 
             ++atom_idx;
 
@@ -113,7 +117,14 @@ cmsHPROFILE get_sys_color_profile()
                 for (int j = 0; j < crtc_info->noutput; ++j)
                 {
                     output_info = XRRGetOutputInfo(dpy, resources, crtc_info->outputs[j]);
+                    if (!output_info) continue;
+                    if (output_info->connection == RR_Disconnected)
+                    {
+                        XRRFreeOutputInfo(output_info);
+                        continue;
+                    }
                     strcpy(xrandr_device_name, output_info->name);
+                    XRRFreeOutputInfo(output_info);
                     if (strlen(xrandr_device_name) > 0)
                     {
                         found_monitor = True;
@@ -121,15 +132,13 @@ cmsHPROFILE get_sys_color_profile()
                     }
                 }
             }
-
+            XRRFreeCrtcInfo(crtc_info);
             if (found_monitor) break;
         }
 
         if (found_monitor) break;
     }
 
-    if (crtc_info) XRRFreeCrtcInfo(crtc_info);
-    if (output_info) XRRFreeOutputInfo(output_info);
     if (resources) XRRFreeScreenResources(resources);
 
     // If monitor not found (I won't pay attention to EDID)
@@ -168,7 +177,9 @@ cmsHPROFILE get_sys_color_profile()
     }
 
     XCloseDisplay(dpy);
-    return cmsOpenProfileFromMem(retProperty, retLength);
+    cmsHPROFILE profile = cmsOpenProfileFromMem(retProperty, retLength);
+    XFree(retProperty);
+    return profile;
 }
 
 #else // not implemented

@@ -115,6 +115,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         lcmsProfileDisplay = get_sys_color_profile();
         if (!lcmsProfileDisplay)
         {
+            cmsCloseProfile(lcmsProfileSimulation);
             vsapi->freeNode(d.node);
             vsapi->setError(out, "iccc: Auto detection of display ICC failed. You should specify from file instead.");
             return;
@@ -122,6 +123,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     else if (!(lcmsProfileDisplay = cmsOpenProfileFromFile(dst_profile, "r")))
     {
+        cmsCloseProfile(lcmsProfileSimulation);
         vsapi->freeNode(d.node);
         vsapi->setError(out, "iccc: Input display profile seems to be invalid.");
         return;
@@ -147,6 +149,8 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     else if (strcmp(sim_intent, "absolute") == 0) lcmsIntentSimulation = INTENT_ABSOLUTE_COLORIMETRIC;
     else
     {
+        cmsCloseProfile(lcmsProfileSimulation);
+        cmsCloseProfile(lcmsProfileDisplay);
         vsapi->freeNode(d.node);
         vsapi->setError(out, "iccc: Input ICC intent for simulation is not supported.");
         return;
@@ -166,6 +170,8 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         else if (strcmp(dis_intent, "absolute") == 0) lcmsIntentDisplay = INTENT_ABSOLUTE_COLORIMETRIC;
         else
         {
+            cmsCloseProfile(lcmsProfileSimulation);
+            cmsCloseProfile(lcmsProfileDisplay);
             vsapi->freeNode(d.node);
             vsapi->setError(out, "iccc: Input ICC intent for display is not supported.");
             return;
@@ -269,6 +275,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     else
     {
+        cmsCloseProfile(lcmsProfileDisplay);
         vsapi->freeNode(d.node);
         vsapi->setError(out, "iccc: Input color space not yet supported.");
         return;
@@ -286,6 +293,8 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     else if (strcmp(intent, "absolute") == 0) lcmsIntent = INTENT_ABSOLUTE_COLORIMETRIC;
     else
     {
+        cmsCloseProfile(lcmsProfileSimulation);
+        cmsCloseProfile(lcmsProfileDisplay);
         vsapi->freeNode(d.node);
         vsapi->setError(out, "iccc: Input ICC intent is not supported.");
         return;
