@@ -41,4 +41,6 @@ const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanc
 
 void VS_CC icccFree(void *instanceData, VSCore *core, const VSAPI *vsapi);
 
+extern "C" char *get_sys_color_profile();
+
 #endif

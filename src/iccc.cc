@@ -109,7 +109,11 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     cmsHPROFILE lcmsProfileDisplay;
     const char *dst_profile = vsapi->propGetData(in, "display_icc", 0, &err);
-    if (err || !(lcmsProfileDisplay = cmsOpenProfileFromFile(dst_profile, "r")))
+    if (err)
+    {
+        dst_profile = get_sys_color_profile();
+    }
+    if (!dst_profile || !(lcmsProfileDisplay = cmsOpenProfileFromFile(dst_profile, "r")))
     {
         vsapi->freeNode(d.node);
         vsapi->setError(out, "iccc: Input display profile seems to be invalid.");
@@ -221,7 +225,11 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     cmsHPROFILE lcmsProfileDisplay;
     const char *dst_profile = vsapi->propGetData(in, "display_icc", 0, &err);
-    if (err || !(lcmsProfileDisplay = cmsOpenProfileFromFile(dst_profile, "r")))
+    if (err)
+    {
+        dst_profile = get_sys_color_profile();
+    }
+    if (!dst_profile || !(lcmsProfileDisplay = cmsOpenProfileFromFile(dst_profile, "r")))
     {
         vsapi->freeNode(d.node);
         vsapi->setError(out, "iccc: Input display profile seems to be invalid.");
@@ -291,7 +299,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
     registerFunc("ICCConvert",
         "clip:clip;"
         "simulation_icc:data;"
-        "display_icc:data;"
+        "display_icc:data:opt;"
         "soft_proofing:int:opt;"
         "simulation_intent:data:opt;"
         "display_intent:data:opt;"
@@ -301,7 +309,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
 
     registerFunc("ICCPlayback",
         "clip:clip;"
-        "display_icc:data;"
+        "display_icc:data:opt;"
         "playback_csp:data:opt;"
         "intent:data:opt",
         iccpCreate, nullptr, plugin);
