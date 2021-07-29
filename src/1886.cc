@@ -10,9 +10,9 @@ cmsHPROFILE profile_1886(const cspData &csp, const cmsHPROFILE &lcmsProfileDispl
 
     cmsCIExyY lcmsWP_xyY = {csp.xw, csp.yw, 1.0};
     cmsCIExyYTRIPLE lcmsPrim_xyY = {
-        .Red = {csp.xr, csp.yr, 1.0},
-        .Green = {csp.xg, csp.yg, 1.0},
-        .Blue = {csp.xb, csp.yb, 1.0}
+        {csp.xr, csp.yr, 1.0},
+        {csp.xg, csp.yg, 1.0},
+        {csp.xb, csp.yb, 1.0}
     };
     cmsToneCurve *lcmsToneCurve[3] = {0};
 

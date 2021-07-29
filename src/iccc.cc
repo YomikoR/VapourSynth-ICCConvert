@@ -238,7 +238,6 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     cmsHPROFILE lcmsProfileSimulation;
     const char *src_profile = vsapi->propGetData(in, "playback_csp", 0, &err);
-    bool valid_csp = true;
     if (err || strcmp(src_profile, "709") == 0)
     {
         lcmsProfileSimulation = profile_1886(csp_709, lcmsProfileDisplay);
@@ -255,8 +254,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     {
         lcmsProfileSimulation = cmsCreate_sRGBProfile();
     }
-    else valid_csp = false;
-    if (!valid_csp)
+    else
     {
         vsapi->freeNode(d.node);
         vsapi->setError(out, "iccc: Input color space not yet supported.");

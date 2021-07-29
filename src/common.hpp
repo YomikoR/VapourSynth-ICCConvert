@@ -8,7 +8,7 @@
 #include <string>
 #include <algorithm>
 
-typedef struct
+struct cspData
 {
     cmsFloat64Number xw;
     cmsFloat64Number yw;
@@ -18,7 +18,7 @@ typedef struct
     cmsFloat64Number yg;
     cmsFloat64Number xb;
     cmsFloat64Number yb;
-} cspData;
+};
 
 const cspData csp_709 = {0.3127, 0.3290, 0.64, 0.33, 0.3, 0.6, 0.15, 0.06};
 
@@ -26,12 +26,12 @@ const cspData csp_601_525 = {0.3127, 0.3290, 0.63, 0.34, 0.31, 0.595, 0.155, 0.0
 
 const cspData csp_601_625 = {0.3127, 0.3290, 0.64, 0.33, 0.29, 0.6, 0.15, 0.06};
 
-typedef struct
+struct icccData
 {
     VSNodeRef *node = nullptr;
     const VSVideoInfo *vi = nullptr;
     cmsHTRANSFORM transform = nullptr;
-} icccData;
+};
 
 cmsHPROFILE profile_1886(const cspData &csp, const cmsHPROFILE &lcmsProfileDisplay);
 
