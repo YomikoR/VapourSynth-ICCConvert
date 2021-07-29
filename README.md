@@ -50,6 +50,12 @@ In Mingw-w64:
 - `gcc icc_detection.c -O2 -c -o icc_detection.o`
 - `g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -O2 -static -shared -llcms2 -lgdi32 -I. -I/path/to/VapourSynth/include -o libiccc.dll`
 
+In Linux:
+- Libraries of `X11`, `Xrandr`, `lcms2` are required.
+- `git clone https://github.com/YomikoR/VapourSynth-ICCConvert --recursive && cd VapourSynth-ICCConvert/src`
+- `gcc icc_detection.c -DAUTO_PROFILE_X11 -O2 -fPIC -c -o icc_detection.o`
+- `g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -O2 -fPIC -shared -llcms2 -lX11 -lXrandr -I. -I/path/to/VapourSynth/include -o libiccc.so`
+
 ---
 
 ## License

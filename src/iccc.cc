@@ -1,4 +1,5 @@
 #include "common.hpp"
+#include "libp2p/p2p_api.h"
 
 void VS_CC icccInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi)
 {
@@ -109,11 +110,17 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     cmsHPROFILE lcmsProfileDisplay;
     const char *dst_profile = vsapi->propGetData(in, "display_icc", 0, &err);
-    if (err)
+    if (err || !dst_profile)
     {
-        dst_profile = get_sys_color_profile();
+        lcmsProfileDisplay = get_sys_color_profile();
+        if (!lcmsProfileDisplay)
+        {
+            vsapi->freeNode(d.node);
+            vsapi->setError(out, "iccc: Auto detection of display ICC failed. You should specify from file instead.");
+            return;
+        }
     }
-    if (!dst_profile || !(lcmsProfileDisplay = cmsOpenProfileFromFile(dst_profile, "r")))
+    else if (!(lcmsProfileDisplay = cmsOpenProfileFromFile(dst_profile, "r")))
     {
         vsapi->freeNode(d.node);
         vsapi->setError(out, "iccc: Input display profile seems to be invalid.");
@@ -225,11 +232,17 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     cmsHPROFILE lcmsProfileDisplay;
     const char *dst_profile = vsapi->propGetData(in, "display_icc", 0, &err);
-    if (err)
+    if (err || !dst_profile)
     {
-        dst_profile = get_sys_color_profile();
+        lcmsProfileDisplay = get_sys_color_profile();
+        if (!lcmsProfileDisplay)
+        {
+            vsapi->freeNode(d.node);
+            vsapi->setError(out, "iccc: Auto detection of display ICC failed. You should specify from file instead.");
+            return;
+        }
     }
-    if (!dst_profile || !(lcmsProfileDisplay = cmsOpenProfileFromFile(dst_profile, "r")))
+    else if (!(lcmsProfileDisplay = cmsOpenProfileFromFile(dst_profile, "r")))
     {
         vsapi->freeNode(d.node);
         vsapi->setError(out, "iccc: Input display profile seems to be invalid.");

@@ -1,4 +1,5 @@
 #include "common.hpp"
+#include <cmath>
 
 // This part generates a BT.1886 profile, basically, taken from mpv
 // https://github.com/mpv-player/mpv/blob/ec0006bfa1aaf608a7141929f2871c89ac7a15d6/video/out/gpu/lcms.c#L275-L326
@@ -6,7 +7,7 @@
 cmsHPROFILE profile_1886(const cspData &csp, const cmsHPROFILE &lcmsProfileDisplay)
 {
     cmsContext lcmsContext = cmsCreateContext(nullptr, nullptr);
-    assert (lcmsContext);
+    if (!lcmsContext) return nullptr;
 
     cmsCIExyY lcmsWP_xyY = {csp.xw, csp.yw, 1.0};
     cmsCIExyYTRIPLE lcmsPrim_xyY = {
@@ -21,7 +22,7 @@ cmsHPROFILE profile_1886(const cspData &csp, const cmsHPROFILE &lcmsProfileDispl
     double src_black[3];
 
     cmsCIEXYZ lcmsBP_XYZ; // black pt
-    assert (cmsDetectBlackPoint(&lcmsBP_XYZ, lcmsProfileDisplay, INTENT_RELATIVE_COLORIMETRIC, 0));
+    if (!cmsDetectBlackPoint(&lcmsBP_XYZ, lcmsProfileDisplay, INTENT_RELATIVE_COLORIMETRIC, 0)) return nullptr;
 
     // XYZ value of the BP -> linear source space
 
@@ -34,7 +35,7 @@ cmsHPROFILE profile_1886(const cspData &csp, const cmsHPROFILE &lcmsProfileDispl
     cmsFreeToneCurve(lcmsLinear);
     cmsCloseProfile(lcmsProfileRev);
     cmsCloseProfile(lcmsProfileXYZ);
-    assert (lcmsTransform_XYZ_src);
+    if (!lcmsTransform_XYZ_src) return nullptr;
     cmsDoTransform(lcmsTransform_XYZ_src, &lcmsBP_XYZ, src_black, 1);
     cmsDeleteTransform(lcmsTransform_XYZ_src);
 
@@ -49,7 +50,7 @@ cmsHPROFILE profile_1886(const cspData &csp, const cmsHPROFILE &lcmsProfileDispl
         const double gamma = 2.4;
         double binv = pow(src_black[i], 1.0 / gamma);
         cmsFloat64Number params[4] = {gamma, 1.0 - binv, binv, 0.0};
-        assert (lcmsToneCurve[i] = cmsBuildParametricToneCurve(lcmsContext, 6, params));
+        if (!(lcmsToneCurve[i] = cmsBuildParametricToneCurve(lcmsContext, 6, params))) return nullptr;
     }
 
     // Create profile for video
@@ -59,6 +60,6 @@ cmsHPROFILE profile_1886(const cspData &csp, const cmsHPROFILE &lcmsProfileDispl
     {
         cmsFreeToneCurve(lcmsToneCurve[i]);
     }
-    return lcmsProfileVideo;
 
+    return lcmsProfileVideo;
 }

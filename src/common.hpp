@@ -4,9 +4,6 @@
 #include <vapoursynth/VapourSynth.h>
 #include <vapoursynth/VSHelper.h>
 #include <lcms2.h>
-#include "libp2p/p2p_api.h"
-#include <string>
-#include <algorithm>
 
 struct cspData
 {
@@ -41,6 +38,6 @@ const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanc
 
 void VS_CC icccFree(void *instanceData, VSCore *core, const VSAPI *vsapi);
 
-extern "C" char *get_sys_color_profile();
+extern "C" cmsHPROFILE get_sys_color_profile();
 
 #endif
