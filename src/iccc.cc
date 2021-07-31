@@ -190,8 +190,6 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         return;
     }
 
-    cmsUInt32Number dwFlag = cmsFLAGS_HIGHRESPRECALC;
-
     bool soft_proofing = vsapi->propGetInt(in, "soft_proofing", 0, &err);
     if (err)
     {
@@ -239,6 +237,8 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         }
     }
 
+    cmsUInt32Number dwFlag = cmsFLAGS_NONEGATIVES;
+
     bool gamut_warning = vsapi->propGetInt(in, "gamut_warning", 0, &err);
     if (err)
     {
@@ -252,6 +252,34 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         bpc = false;
     }
     if (bpc) dwFlag = dwFlag | cmsFLAGS_BLACKPOINTCOMPENSATION;
+
+    int clut_size = vsapi->propGetInt(in, "clut_size", 0, &err);
+    if (err)
+    {
+        clut_size = 1;
+    }
+    if (clut_size == -1)
+    {
+        clut_size = 17; // default for cmsFLAGS_LOWRESPRECALC
+    }
+    else if (clut_size == 0)
+    {
+        clut_size = 33; // default
+    }
+    else if (clut_size == 1)
+    {
+        clut_size = 49; // default for cmsFLAGS_HIGHRESPRECALC
+    }
+    else if ((clut_size < -1) || (clut_size > 255))
+    {
+        cmsCloseProfile(lcmsProfileSimulation);
+        cmsCloseProfile(lcmsProfileDisplay);
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input clut size seems not valid.");
+        return;
+    }
+
+    dwFlag = dwFlag | cmsFLAGS_GRIDPOINTS(clut_size);
 
     if (soft_proofing)
     {
@@ -362,7 +390,49 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         return;
     }
 
-    cmsUInt32Number dwFlag = cmsFLAGS_HIGHRESPRECALC;
+    cmsUInt32Number dwFlag = cmsFLAGS_NONEGATIVES;
+
+    bool gamut_warning = vsapi->propGetInt(in, "gamut_warning", 0, &err);
+    if (err)
+    {
+        gamut_warning = false;
+    }
+    if (gamut_warning) dwFlag = dwFlag | cmsFLAGS_GAMUTCHECK;
+
+    bool bpc = vsapi->propGetInt(in, "black_point_compensation", 0, &err);
+    if (err)
+    {
+        bpc = false;
+    }
+    if (bpc) dwFlag = dwFlag | cmsFLAGS_BLACKPOINTCOMPENSATION;
+
+    int clut_size = vsapi->propGetInt(in, "clut_size", 0, &err);
+    if (err)
+    {
+        clut_size = 1;
+    }
+    if (clut_size == -1)
+    {
+        clut_size = 17; // default for cmsFLAGS_LOWRESPRECALC
+    }
+    else if (clut_size == 0)
+    {
+        clut_size = 33; // default
+    }
+    else if (clut_size == 1)
+    {
+        clut_size = 49; // default for cmsFLAGS_HIGHRESPRECALC
+    }
+    else if ((clut_size < -1) || (clut_size > 255))
+    {
+        cmsCloseProfile(lcmsProfileSimulation);
+        cmsCloseProfile(lcmsProfileDisplay);
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input clut size seems not valid.");
+        return;
+    }
+
+    dwFlag = dwFlag | cmsFLAGS_GRIDPOINTS(clut_size);
 
     d.transform = cmsCreateTransform(lcmsProfileSimulation, lcmsDataType, lcmsProfileDisplay, lcmsDataType, lcmsIntent, dwFlag);
 
@@ -386,13 +456,15 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
         "simulation_intent:data:opt;"
         "display_intent:data:opt;"
         "gamut_warning:int:opt;"
-        "black_point_compensation:int:opt",
+        "black_point_compensation:int:opt;"
+        "clut_size:int:opt",
         icccCreate, nullptr, plugin);
 
     registerFunc("ICCPlayback",
         "clip:clip;"
         "display_icc:data:opt;"
         "playback_csp:data:opt;"
-        "intent:data:opt",
+        "intent:data:opt;"
+        "clut_size:int:opt",
         iccpCreate, nullptr, plugin);
 }

@@ -7,7 +7,7 @@ Little CMS based ICC profile simulation for VapourSynth.
 ## Usage
 
 ```python
-iccc.ICCConvert(clip, simulation_icc, display_icc, soft_proofing=True, simulation_intent='relative', display_intent='perceptual', gamut_warning=False, black_point_compensation=False)
+iccc.ICCConvert(clip, simulation_icc, display_icc, soft_proofing=True, simulation_intent='relative', display_intent='perceptual', gamut_warning=False, black_point_compensation=False, clut_size=49)
 ```
 Intended for soft proofing.
 
@@ -32,10 +32,16 @@ If not in soft proofing mode, only `simulation_intent` will be taken.
 
 `black_point_compensation` is the flag for what it tells. Default off.
 
+`clut_size` specifies the internal LUT size used by Little CMS. The LUT size is applied for each plane (channel), so it does have an impact on the speed of plugin initialization. Possible values are the following:
+- 2~255 for the actual LUT size
+- 1 for Little CMS preset which is equivalent to 49 (default)
+- 0 for Little CMS preset which is equivalent to 33
+- -1 for Little CMS preset which is equivalent to 17
+
 ```python
-iccc.ICCPlayback(clip, display_icc, playback_csp='709', intent='perceptual')
+iccc.ICCPlayback(clip, display_icc, playback_csp='709', intent='perceptual', clut_size=49)
 ```
-One-way gamut mapping for video playback with BT.1886 configuration.
+One-way color profile mapping for video playback with BT.1886 configuration.
 
 Currently supported `playback_csp` options are `'709'` (HD), `'601-525'` (SMPTE-C) and `'601-625'` (PAL).
 
