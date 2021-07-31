@@ -16,7 +16,7 @@ char *mp_to_utf8(const wchar_t *s)
     return ret;
 }
 
-cmsHPROFILE get_sys_color_profile()
+cmsHPROFILE get_profile_sys()
 {
     HMONITOR monitor = MonitorFromWindow(GetForegroundWindow(), MONITOR_DEFAULTTONEAREST);
     MONITORINFOEXW mi = { .cbSize = sizeof mi };
@@ -59,7 +59,7 @@ done:
 # error X11 RandR version should be at least 1.2
 #endif
 
-cmsHPROFILE get_sys_color_profile()
+cmsHPROFILE get_profile_sys()
 {
     Display *dpy = XOpenDisplay(NULL);
     if (!dpy) return NULL;
@@ -184,7 +184,7 @@ cmsHPROFILE get_sys_color_profile()
 
 #else // not implemented
 
-cmsHPROFILE get_sys_color_profile()
+cmsHPROFILE get_profile_sys()
 {
     return NULL;
 }

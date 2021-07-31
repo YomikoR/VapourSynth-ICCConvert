@@ -1,5 +1,14 @@
 #include "common.hpp"
+#include <vapoursynth/VapourSynth.h>
+#include <vapoursynth/VSHelper.h>
 #include "libp2p/p2p_api.h"
+
+struct icccData
+{
+    VSNodeRef *node = nullptr;
+    const VSVideoInfo *vi = nullptr;
+    cmsHTRANSFORM transform = nullptr;
+};
 
 void VS_CC icccInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi)
 {
@@ -112,7 +121,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     const char *dst_profile = vsapi->propGetData(in, "display_icc", 0, &err);
     if (err || !dst_profile)
     {
-        lcmsProfileDisplay = get_sys_color_profile();
+        lcmsProfileDisplay = get_profile_sys();
         if (!lcmsProfileDisplay)
         {
             cmsCloseProfile(lcmsProfileSimulation);
@@ -240,7 +249,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     const char *dst_profile = vsapi->propGetData(in, "display_icc", 0, &err);
     if (err || !dst_profile)
     {
-        lcmsProfileDisplay = get_sys_color_profile();
+        lcmsProfileDisplay = get_profile_sys();
         if (!lcmsProfileDisplay)
         {
             vsapi->freeNode(d.node);
@@ -259,15 +268,15 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     const char *src_profile = vsapi->propGetData(in, "playback_csp", 0, &err);
     if (err || strcmp(src_profile, "709") == 0)
     {
-        lcmsProfileSimulation = profile_1886(csp_709, lcmsProfileDisplay);
+        lcmsProfileSimulation = get_profile_1886(csp_709, lcmsProfileDisplay);
     }
     else if (strcmp(src_profile, "601-525") == 0)
     {
-        lcmsProfileSimulation = profile_1886(csp_601_525, lcmsProfileDisplay);
+        lcmsProfileSimulation = get_profile_1886(csp_601_525, lcmsProfileDisplay);
     }
     else if (strcmp(src_profile, "601-625") == 0)
     {
-        lcmsProfileSimulation = profile_1886(csp_601_625, lcmsProfileDisplay);
+        lcmsProfileSimulation = get_profile_1886(csp_601_625, lcmsProfileDisplay);
     }
     else if (strcmp(src_profile, "srgb") == 0)
     {

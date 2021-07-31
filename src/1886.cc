@@ -4,7 +4,7 @@
 // This part generates a BT.1886 profile, basically, taken from mpv
 // https://github.com/mpv-player/mpv/blob/ec0006bfa1aaf608a7141929f2871c89ac7a15d6/video/out/gpu/lcms.c#L275-L326
 
-cmsHPROFILE profile_1886(const cspData &csp, const cmsHPROFILE &lcmsProfileDisplay)
+cmsHPROFILE get_profile_1886(const cspData &csp, const cmsHPROFILE &lcmsProfileDisplay)
 {
     cmsContext lcmsContext = cmsCreateContext(nullptr, nullptr);
     if (!lcmsContext) return nullptr;
