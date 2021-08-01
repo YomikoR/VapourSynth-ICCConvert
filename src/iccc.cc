@@ -253,7 +253,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     if (bpc) dwFlag = dwFlag | cmsFLAGS_BLACKPOINTCOMPENSATION;
 
-    int clut_size = vsapi->propGetInt(in, "clut_size", 0, &err);
+    int clut_size = int64ToIntS(vsapi->propGetInt(in, "clut_size", 0, &err));
     if (err)
     {
         clut_size = 1;
@@ -345,19 +345,36 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         return;
     }
 
+    double gamma = vsapi->propGetFloat(in, "gamma", 0, &err);
+    if (err)
+    {
+        gamma = -1.0;
+    }
+    else if ((gamma < 0.01) || (gamma > 100.0))
+    {
+        cmsCloseProfile(lcmsProfileDisplay);
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input gamma value is allowed between 0.01 and 100.0.");
+        return;
+    }
+
     cmsHPROFILE lcmsProfileSimulation;
     const char *src_profile = vsapi->propGetData(in, "playback_csp", 0, &err);
     if (err || strcmp(src_profile, "709") == 0)
     {
-        lcmsProfileSimulation = get_profile_1886(csp_709, lcmsProfileDisplay);
+        lcmsProfileSimulation = get_profile_playback(csp_709, gamma, lcmsProfileDisplay);
     }
-    else if (strcmp(src_profile, "601-525") == 0)
+    else if ((strcmp(src_profile, "601-525") == 0) || (strcmp(src_profile, "170m") == 0) || (strcmp(src_profile, "240m") == 0))
     {
-        lcmsProfileSimulation = get_profile_1886(csp_601_525, lcmsProfileDisplay);
+        lcmsProfileSimulation = get_profile_playback(csp_601_525, gamma, lcmsProfileDisplay);
     }
-    else if (strcmp(src_profile, "601-625") == 0)
+    else if ((strcmp(src_profile, "601-625") == 0) || (strcmp(src_profile, "470bg") == 0))
     {
-        lcmsProfileSimulation = get_profile_1886(csp_601_625, lcmsProfileDisplay);
+        lcmsProfileSimulation = get_profile_playback(csp_601_625, gamma, lcmsProfileDisplay);
+    }
+    else if ((strcmp(src_profile, "2020") == 0) || (strcmp(src_profile, "2020-10") == 0) || (strcmp(src_profile, "2020-12") == 0))
+    {
+        lcmsProfileSimulation = get_profile_playback(csp_2020, gamma, lcmsProfileDisplay);
     }
     else if (strcmp(src_profile, "srgb") == 0)
     {
@@ -406,7 +423,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     if (bpc) dwFlag = dwFlag | cmsFLAGS_BLACKPOINTCOMPENSATION;
 
-    int clut_size = vsapi->propGetInt(in, "clut_size", 0, &err);
+    int clut_size = int64ToIntS(vsapi->propGetInt(in, "clut_size", 0, &err));
     if (err)
     {
         clut_size = 1;
@@ -464,6 +481,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
         "clip:clip;"
         "display_icc:data:opt;"
         "playback_csp:data:opt;"
+        "gamma:float:opt;"
         "intent:data:opt;"
         "clut_size:int:opt",
         iccpCreate, nullptr, plugin);
