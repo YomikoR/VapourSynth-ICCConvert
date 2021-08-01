@@ -68,6 +68,7 @@ cmsHPROFILE get_profile_sys()
     char xrandr_device_name[230];
     Bool found_monitor = False;
 
+    Window curr = None;
     Window root = None;
 
     // The atom name will be _ICC_PROFILE for index 0
@@ -81,17 +82,37 @@ cmsHPROFILE get_profile_sys()
 
     for (int scr = 0; scr < ScreenCount(dpy); ++scr)
     {
-        if (!(root = RootWindow(dpy, scr))) continue;
+        /* If we have two monitors, the root window is the combination of them, e.g.
+         *     |<-1->|
+         *  |<-2->|   
+         * will in total have a rectangular shape as 
+         *  |..|<-1->|
+         *  |<-2->|..|
+         */
+
+        // Get Focus
+
+        int revert_to;
+        XGetInputFocus(dpy, &curr, &revert_to);
+        if (!curr) continue;
 
         int x, y;
         unsigned int width, height;
         unsigned int border_width, depth;
 
-        if (!XGetGeometry(dpy, root, &root, &x, &y, &width, &height, &border_width, &depth)) continue;
+        if (!XGetGeometry(dpy, curr, &root, &x, &y, &width, &height, &border_width, &depth)) continue;
         if (!root) continue;
 
-        unsigned int wx = (x + width) / 2;
-        unsigned int wy = (y + height) / 2;
+        // Center of the current window relative to the window itself, used for detection
+
+        unsigned int xwc = (x + width) / 2;
+        unsigned int ywc = (y + height) / 2;
+
+        // Transform to the coordinates in the root window
+
+        int wx, wy;
+        Window child;
+        if (!XTranslateCoordinates(dpy, curr, root, xwc, ywc, &wx, &wy, &child)) continue;
 
         // XRRGetScreenResourcesCurrent provides cached result (fast but...)
         if (!(resources = XRRGetScreenResourcesCurrent(dpy, root))) continue;
