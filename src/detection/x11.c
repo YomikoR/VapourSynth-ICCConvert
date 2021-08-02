@@ -1,70 +1,27 @@
+#if defined (__linux__) && defined (AUTO_PROFILE_X11)
 #include <lcms2.h>
-
-#if defined (_WIN32)
-#include <Windows.h>
-
-// This part gets the color profile currently used by Windows
-// Taken from mpv
-
-char *mp_to_utf8(const wchar_t *s)
-{
-    int count = WideCharToMultiByte(CP_UTF8, 0, s, -1, NULL, 0, NULL, NULL);
-    if (count <= 0)
-        abort();
-    char *ret = (char *)malloc(count * sizeof(char));
-    WideCharToMultiByte(CP_UTF8, 0, s, -1, ret, count, NULL, NULL);
-    return ret;
-}
-
-cmsHPROFILE get_profile_sys()
-{
-    HMONITOR monitor = MonitorFromWindow(GetForegroundWindow(), MONITOR_DEFAULTTONEAREST);
-    MONITORINFOEXW mi = { .cbSize = sizeof mi };
-    GetMonitorInfoW(monitor, (MONITORINFO*)&mi);
-
-    cmsHPROFILE profile = NULL;
-    char *name = NULL;
-
-    HDC ic = CreateICW(mi.szDevice, NULL, NULL, NULL);
-    if (!ic)
-        goto done;
-    wchar_t wname[MAX_PATH + 1];
-    if (!GetICMProfileW(ic, &(DWORD){ MAX_PATH }, wname))
-        goto done;
-
-    name = mp_to_utf8(wname);
-    profile = cmsOpenProfileFromFile(name, "r");
-    free(name);
-done:
-    if (ic)
-        DeleteDC(ic);
-    return profile;
-}
-
-#elif defined (__linux__) && defined (AUTO_PROFILE_X11)
-
-// This part gets the color profile currently (?) used by X11
-// In Linux it's a mess
-// (How should I properly connect to the colord daemon in a plugin?)
-
 #include <X11/Xlib.h>
-#include <X11/Xatom.h>
 #include <X11/extensions/Xrandr.h>
-#include <stdlib.h>
-#include <limits.h>
 #include <string.h>
 #include <stdio.h>
-
 #if (RANDR_MAJOR < 1) || ((RANDR_MAJOR == 1) && (RANDR_MINOR < 2))
 # error X11 RandR version should be at least 1.2
 #endif
+
+# if defined (AUTO_PROFILE_COLORD)
+#  define __USE_GNU
+#include <dlfcn.h>
+#include <libgen.h>
+# else
+#include <X11/Xatom.h>
+# endif
 
 cmsHPROFILE get_profile_sys()
 {
     Display *dpy = XOpenDisplay(NULL);
     if (!dpy) return NULL;
 
-    // Required if implementing with colord
+    // Required for colord
     char xrandr_device_name[230];
     Bool found_monitor = False;
 
@@ -81,12 +38,12 @@ cmsHPROFILE get_profile_sys()
     XRROutputInfo *output_info = NULL;
 
     /* If we have two monitors, the root window is the combination of them, e.g.
-        *     |<-1->|
-        *  |<-2->|   
-        * will in total have a rectangular shape as 
-        *  |..|<-1->|
-        *  |<-2->|..|
-        */
+     *     |<-1->|
+     *  |<-2->|   
+     * will in total have a rectangular shape as 
+     *  |..|<-1->|
+     *  |<-2->|..|
+     */
 
     // Get Focus
 
@@ -145,7 +102,7 @@ cmsHPROFILE get_profile_sys()
 
         if (wx >= crtc_info->x && wx <= crtc_info->x + crtc_info->width && wy >= crtc_info->y && wy <= crtc_info->y + crtc_info->height)
         {
-            // Root window locates in this crtc
+            // Window locates in this crtc
             // Outputs should share the same vcgt (or not?)
             // Search in outputs until we get a name
             for (int j = 0; j < crtc_info->noutput; ++j)
@@ -179,6 +136,41 @@ cmsHPROFILE get_profile_sys()
         return NULL;
     }
 
+# if defined (AUTO_PROFILE_COLORD)
+
+    // Get the relative path to libiccc_colord.so
+
+    Dl_info dl_info;
+    dladdr((void *)get_profile_sys, &dl_info);
+    char this_dll_path[4000];
+    strcpy(this_dll_path, dl_info.dli_fname);
+    char *this_dll_dir = dirname(this_dll_path);
+    char colord_dll_path[4000];
+    sprintf(colord_dll_path, "%s/libiccc_colord.so", this_dll_dir);
+
+    char *icc_file = NULL;
+
+    // Load shared library
+
+    void *dll_handle = dlopen(colord_dll_path, RTLD_LAZY);
+    if (!dll_handle)
+    {
+        XCloseDisplay(dpy);
+        return NULL;
+    }
+    char *(*cdfunc) (const char *) = NULL;
+    if (cdfunc = dlsym(dll_handle, "cd_get_position"))
+    {
+        icc_file = (*cdfunc)(xrandr_device_name);
+    }
+
+    // YOU ARE OVER IF YOU CLOSE IT
+    //dlclose(dll_handle);
+
+    XCloseDisplay(dpy);
+    return icc_file ? cmsOpenProfileFromFile(icc_file, "r") : NULL;
+
+# else // X11
     char iccAtomName[32];
     if (atom_idx == 0)
     {
@@ -211,13 +203,10 @@ cmsHPROFILE get_profile_sys()
     cmsHPROFILE profile = cmsOpenProfileFromMem(retProperty, retLength);
     XFree(retProperty);
     return profile;
+
+# endif // AUTO_PROFILE_COLORD
 }
 
-#else // not implemented
-
-cmsHPROFILE get_profile_sys()
-{
-    return NULL;
-}
-
-#endif // OS
+#else
+# error This file should not be compiled.
+#endif // __linux__

@@ -71,12 +71,33 @@ However, you may also set it as `'srgb'` for images.
 
 In Mingw-w64:
 - Install `mingw-w64-x86_64-lcms2`
-- `git clone https://github.com/YomikoR/VapourSynth-ICCConvert --recursive && cd VapourSynth-ICCConvert/src`
-- `gcc icc_detection.c -O2 -c -o icc_detection.o`
-- `g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -O2 -static -shared -llcms2 -lgdi32 -I. -I/path/to/VapourSynth/include -o libiccc.dll`
+- ```
+  git clone https://github.com/YomikoR/VapourSynth-ICCConvert --recursive && cd VapourSynth-ICCConvert/src
 
-In Linux:
+  gcc detection/win32.c -O2 -c -o icc_detection.o
+
+  g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -O2 -static -shared -llcms2 -lgdi32 -I. -I/path/to/VapourSynth/include -o libiccc.dll
+  ```
+
+In Linux with X11:
 - Libraries of `X11`, `Xrandr`, `lcms2` are required.
-- `git clone https://github.com/YomikoR/VapourSynth-ICCConvert --recursive && cd VapourSynth-ICCConvert/src`
-- `gcc icc_detection.c -DAUTO_PROFILE_X11 -O2 -fPIC -c -o icc_detection.o`
-- `g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -O2 -fPIC -shared -llcms2 -lX11 -lXrandr -I. -I/path/to/VapourSynth/include -o libiccc.so`
+- ```
+  git clone https://github.com/YomikoR/VapourSynth-ICCConvert --recursive && cd VapourSynth-ICCConvert/src
+  
+  gcc detection/x11.c -DAUTO_PROFILE_X11 -O2 -fPIC -c -o icc_detection.o
+  
+  g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -DAUTO_PROFILE_X11 -O2 -fPIC -shared -llcms2 -lX11 -lXrandr -I. -I/path/to/VapourSynth/include -o libiccc.so
+  ```
+
+In Linux with X11 and **colord**:
+ - Libraries of `X11`, `Xrandr`, `lcms2` and `colord` are required.
+ - The colord module may be compiled into a standalone library, whose relative path will be used. Therefore, place `libiccc_colord.so` in the same directory of the main output, and do not change its name.
+ - ```
+   git clone https://github.com/YomikoR/VapourSynth-ICCConvert --recursive && cd VapourSynth-ICCConvert/src
+
+   gcc detection/colord.c -DAUTO_PROFILE_COLORD -O2 -fPIC -shared `pkg-config --cflags colord` `pkg-config --libs colord` -o libiccc_colord.so
+
+   gcc detection/x11.c -DAUTO_PROFILE_X11 -DAUTO_PROFILE_COLORD -O2 -fPIC -c -o icc_detection.o
+
+   g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -DAUTO_PROFILE_X11 -DAUTO_PROFILE_COLORD -O2 -fPIC -shared `pkg-config --libs colord` -llcms2 -lX11 -lXrandr -I/path/to/VapourSynth/include -o libiccc.so
+   ```
