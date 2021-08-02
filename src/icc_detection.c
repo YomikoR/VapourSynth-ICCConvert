@@ -80,83 +80,93 @@ cmsHPROFILE get_profile_sys()
     XRRCrtcInfo *crtc_info = NULL;
     XRROutputInfo *output_info = NULL;
 
-    for (int scr = 0; scr < ScreenCount(dpy); ++scr)
+    /* If we have two monitors, the root window is the combination of them, e.g.
+        *     |<-1->|
+        *  |<-2->|   
+        * will in total have a rectangular shape as 
+        *  |..|<-1->|
+        *  |<-2->|..|
+        */
+
+    // Get Focus
+
+    int revert_to;
+    XGetInputFocus(dpy, &curr, &revert_to);
+    if (!curr)
     {
-        /* If we have two monitors, the root window is the combination of them, e.g.
-         *     |<-1->|
-         *  |<-2->|   
-         * will in total have a rectangular shape as 
-         *  |..|<-1->|
-         *  |<-2->|..|
-         */
+        XCloseDisplay(dpy);
+        return NULL;
+    }
 
-        // Get Focus
+    int x, y;
+    unsigned int width, height;
+    unsigned int border_width, depth;
 
-        int revert_to;
-        XGetInputFocus(dpy, &curr, &revert_to);
-        if (!curr) continue;
+    if (!XGetGeometry(dpy, curr, &root, &x, &y, &width, &height, &border_width, &depth) || !root)
+    {
+        XCloseDisplay(dpy);
+        return NULL;
+    }
 
-        int x, y;
-        unsigned int width, height;
-        unsigned int border_width, depth;
+    // Center of the current window relative to the window itself, used for detection
 
-        if (!XGetGeometry(dpy, curr, &root, &x, &y, &width, &height, &border_width, &depth)) continue;
-        if (!root) continue;
+    unsigned int xwc = (x + width) / 2;
+    unsigned int ywc = (y + height) / 2;
 
-        // Center of the current window relative to the window itself, used for detection
+    // Transform to the coordinates in the root window
 
-        unsigned int xwc = (x + width) / 2;
-        unsigned int ywc = (y + height) / 2;
+    int wx, wy;
+    Window child;
+    if (!XTranslateCoordinates(dpy, curr, root, xwc, ywc, &wx, &wy, &child))
+    {
+        XCloseDisplay(dpy);
+        return NULL;
+    }
 
-        // Transform to the coordinates in the root window
+    // XRRGetScreenResourcesCurrent provides cached result (fast but...)
+    if (!(resources = XRRGetScreenResourcesCurrent(dpy, root)))
+    {
+        XCloseDisplay(dpy);
+        return NULL;
+    }
 
-        int wx, wy;
-        Window child;
-        if (!XTranslateCoordinates(dpy, curr, root, xwc, ywc, &wx, &wy, &child)) continue;
+    for (int i = 0; i < resources->ncrtc; ++i)
+    {
+        crtc_info = NULL;
+        if (!(crtc_info = XRRGetCrtcInfo(dpy, resources, resources->crtcs[i]))) continue;
 
-        // XRRGetScreenResourcesCurrent provides cached result (fast but...)
-        if (!(resources = XRRGetScreenResourcesCurrent(dpy, root))) continue;
-
-        for (int i = 0; i < resources->ncrtc; ++i)
+        if (crtc_info->mode == None || !crtc_info->noutput)
         {
-            crtc_info = NULL;
-            if (!(crtc_info = XRRGetCrtcInfo(dpy, resources, resources->crtcs[i]))) continue;
-
-            if (crtc_info->mode == None || !crtc_info->noutput)
-            {
-                XRRFreeCrtcInfo(crtc_info);
-                continue;
-            }
-
-            ++atom_idx;
-
-            if (wx >= crtc_info->x && wx <= crtc_info->x + crtc_info->width && wy >= crtc_info->y && wy <= crtc_info->y + crtc_info->height)
-            {
-                // Root window locates in this crtc
-                // Outputs should share the same vcgt (or not?)
-                // Search in outputs until we get a name
-                for (int j = 0; j < crtc_info->noutput; ++j)
-                {
-                    output_info = XRRGetOutputInfo(dpy, resources, crtc_info->outputs[j]);
-                    if (!output_info) continue;
-                    if (output_info->connection == RR_Disconnected)
-                    {
-                        XRRFreeOutputInfo(output_info);
-                        continue;
-                    }
-                    strcpy(xrandr_device_name, output_info->name);
-                    XRRFreeOutputInfo(output_info);
-                    if (strlen(xrandr_device_name) > 0)
-                    {
-                        found_monitor = True;
-                        break;
-                    }
-                }
-            }
             XRRFreeCrtcInfo(crtc_info);
-            if (found_monitor) break;
+            continue;
         }
 
+        ++atom_idx;
+
+        if (wx >= crtc_info->x && wx <= crtc_info->x + crtc_info->width && wy >= crtc_info->y && wy <= crtc_info->y + crtc_info->height)
+        {
+            // Root window locates in this crtc
+            // Outputs should share the same vcgt (or not?)
+            // Search in outputs until we get a name
+            for (int j = 0; j < crtc_info->noutput; ++j)
+            {
+                output_info = XRRGetOutputInfo(dpy, resources, crtc_info->outputs[j]);
+                if (!output_info) continue;
+                if (output_info->connection == RR_Disconnected)
+                {
+                    XRRFreeOutputInfo(output_info);
+                    continue;
+                }
+                strcpy(xrandr_device_name, output_info->name);
+                XRRFreeOutputInfo(output_info);
+                if (strlen(xrandr_device_name) > 0)
+                {
+                    found_monitor = True;
+                    break;
+                }
+            }
+        }
+        XRRFreeCrtcInfo(crtc_info);
         if (found_monitor) break;
     }
 
