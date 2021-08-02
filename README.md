@@ -22,9 +22,9 @@ Intended for soft proofing.
   In Windows and in Linux X11, this parameter is *optional*. The default profile is detected for the current window (e.g. the editor window of VapourSynth Editor, or the console window used to launch vapoursynth-preview, but *not* their preview windows). Procedures of detection are a little different:
   - Windows: *foreground* window -> monitor -> ICC profile
     - The profile should be identical to the one shown in Start -> Settings -> System -> Display
-  - Linux, X11: center of the window of *input focus* -> monitor -> ICC profile *by X11*
+  - Linux, X11: center of the window of *input focus* -> monitor -> ICC profile *by X11* or *by colord* (built differently, see the compilation section)
     - If center of the window is out of any monitor, the detection fails
-    - By connecting and disconnecting monitors, switching the primary display, etc., X11 may easily confuse the color profiles
+    - By connecting and disconnecting monitors, switching the primary display, etc., X11 may easily confuse the color profiles, but colord usually does right
 
   It's strongly recommended to manually specify the ICC profile for production purpose.
 
