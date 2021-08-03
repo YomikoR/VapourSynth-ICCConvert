@@ -67,7 +67,7 @@ However, you may also set it as `'srgb'` for images.
 
 ---
 
-## Compilation
+## Manual Compilation
 
 In Mingw-w64:
 - Install `mingw-w64-x86_64-lcms2`
@@ -76,7 +76,7 @@ In Mingw-w64:
 
   gcc detection/win32.c -O2 -c -o icc_detection.o
 
-  g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -O2 -static -shared -llcms2 -lgdi32 -I. -I/path/to/VapourSynth/include -o libiccc.dll
+  g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -O2 -static -shared -llcms2 -lgdi32 -I. -o libiccc.dll
   ```
 
 In Linux with X11:
@@ -86,7 +86,7 @@ In Linux with X11:
   
   gcc detection/x11.c -DAUTO_PROFILE_X11 -O2 -fPIC -c -o icc_detection.o
   
-  g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -DAUTO_PROFILE_X11 -O2 -fPIC -shared -llcms2 -lX11 -lXrandr -I. -I/path/to/VapourSynth/include -o libiccc.so
+  g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -DAUTO_PROFILE_X11 -O2 -fPIC -shared -llcms2 -lX11 -lXrandr -I. -o libiccc.so
   ```
 
 In Linux with X11 and **colord**:
@@ -99,5 +99,5 @@ In Linux with X11 and **colord**:
 
    gcc detection/x11.c -DAUTO_PROFILE_X11 -DAUTO_PROFILE_COLORD -O2 -fPIC -c -o icc_detection.o
 
-   g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -DAUTO_PROFILE_X11 -DAUTO_PROFILE_COLORD -O2 -fPIC -shared `pkg-config --libs colord` -llcms2 -lX11 -lXrandr -I/path/to/VapourSynth/include -o libiccc.so
+   g++ iccc.cc 1886.cc icc_detection.o libp2p/p2p_api.cpp libp2p/v210.cpp -DAUTO_PROFILE_X11 -DAUTO_PROFILE_COLORD -O2 -fPIC -shared -llcms2 -lX11 -lXrandr -I. -o libiccc.so
    ```
