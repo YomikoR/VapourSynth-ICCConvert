@@ -1,6 +1,6 @@
 #include "common.hpp"
-#include <vapoursynth/VapourSynth.h>
-#include <vapoursynth/VSHelper.h>
+#include "vapoursynth/VapourSynth.h"
+#include "vapoursynth/VSHelper.h"
 #include "libp2p/p2p_api.h"
 
 struct icccData
