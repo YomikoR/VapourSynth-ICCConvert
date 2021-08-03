@@ -41,10 +41,6 @@ cmsHPROFILE get_profile_playback(const cspData &csp, const double gamma, const c
         cmsDoTransform(lcmsTransform_XYZ_src, &lcmsBP_XYZ, src_black, 1);
         cmsDeleteTransform(lcmsTransform_XYZ_src);
 
-        // Get contrast from black point
-
-        double contrast = 3.0 / (src_black[0] + src_black[1] + src_black[2]);
-
         // Build the transfer curve of BT.1886
 
         for (int i = 0; i < 3; ++i)

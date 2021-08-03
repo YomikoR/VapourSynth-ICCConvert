@@ -159,7 +159,7 @@ cmsHPROFILE get_profile_sys()
         return NULL;
     }
     char *(*cdfunc) (const char *) = NULL;
-    if (cdfunc = dlsym(dll_handle, "cd_get_position"))
+    if ((cdfunc = dlsym(dll_handle, "cd_get_position")))
     {
         icc_file = (*cdfunc)(xrandr_device_name);
     }
