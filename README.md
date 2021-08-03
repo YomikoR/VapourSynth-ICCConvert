@@ -53,17 +53,19 @@ Intended for soft proofing.
     - -1 for Little CMS preset which is equivalent to 17
 
 ```python
-iccc.ICCPlayback(clip, display_icc, playback_csp='709', gamma=None, intent='perceptual', clut_size=49)
+iccc.ICCPlayback(clip, display_icc, playback_csp='709', gamma=None, intent='perceptual', black_point_compensation=False, clut_size=49)
 ```
 One-way color profile mapping for video playback with BT.1886 configuration, or overridden by a given float value of `gamma` (e.g. 2.4 for OLED displays).
 
 Currently supported `playback_csp` options are the following:
 - `'709'` for HD
 - `'2020'` for UHD
-- `'601-525'`, `'170m'` for SD (NTSC)
+- `'601-525'`, `'170m'` or `'240m'` for SD (NTSC)
 - `'601-625'`, `'470bg'` for SD (PAL)
 
 However, you may also set it as `'srgb'` for images.
+
+By default, black point compensation is enabled in mpv, but here the flag is off.
 
 ---
 
