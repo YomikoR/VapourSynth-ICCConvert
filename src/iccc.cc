@@ -483,6 +483,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
         "playback_csp:data:opt;"
         "gamma:float:opt;"
         "intent:data:opt;"
+        "black_point_compensation:int:opt;"
         "clut_size:int:opt",
         iccpCreate, nullptr, plugin);
 }
