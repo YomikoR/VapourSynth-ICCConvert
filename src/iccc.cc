@@ -392,7 +392,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     const char *intent = vsapi->propGetData(in, "intent", 0, &err);
     if (err)
     {
-        lcmsIntent = INTENT_PERCEPTUAL;
+        lcmsIntent = INTENT_RELATIVE_COLORIMETRIC;
     }
     else if (strcmp(intent, "perceptual") == 0) lcmsIntent = INTENT_PERCEPTUAL;
     else if (strcmp(intent, "relative") == 0) lcmsIntent = INTENT_RELATIVE_COLORIMETRIC;
@@ -419,7 +419,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     bool bpc = vsapi->propGetInt(in, "black_point_compensation", 0, &err);
     if (err)
     {
-        bpc = false;
+        bpc = true;
     }
     if (bpc) dwFlag = dwFlag | cmsFLAGS_BLACKPOINTCOMPENSATION;
 
