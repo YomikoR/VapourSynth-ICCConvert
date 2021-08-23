@@ -3,6 +3,12 @@
 #include "vapoursynth/VSHelper.h"
 #include "libp2p/p2p_api.h"
 
+inline bool isLittleEndian()
+{
+    static constexpr uint32_t VAL = 0x00000001;
+    return (0xFFFFFFFF & 1) == VAL;
+}
+
 struct icccData
 {
     VSNodeRef *node = nullptr;
@@ -48,7 +54,7 @@ const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanc
             {
                 for (int w = 0; w < width; ++w)
                 {
-                    raw_src_f[(h * width + w) * 3 + 2] = src_p0[h * stride / 4 + w];
+                    raw_src_f[(h * width + w) * 3 + isLittleEndian() ? 2 : 0] = src_p0[h * stride / 4 + w];
                 }
                 for (int w = 0; w < width; ++w)
                 {
@@ -56,7 +62,7 @@ const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanc
                 }
                 for (int w = 0; w < width; ++w)
                 {
-                    raw_src_f[(h * width + w) * 3 + 0] = src_p2[h * stride / 4 + w];
+                    raw_src_f[(h * width + w) * 3 + isLittleEndian() ? 0 : 2] = src_p2[h * stride / 4 + w];
                 }
             }
         }
@@ -72,7 +78,7 @@ const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanc
             }
             p2p_src.dst[0] = raw_src;
             p2p_src.dst_stride[0] = width * 3 * bps;
-            p2p_src.packing = (bps == 2) ? p2p_rgb48_le : p2p_rgb24_le;
+            p2p_src.packing = (bps == 2) ? p2p_rgb48 : p2p_rgb24;
             p2p_pack_frame(&p2p_src, 0);
         }
 
@@ -90,7 +96,7 @@ const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanc
             {
                 for (int w = 0; w < width; ++w)
                 {
-                    dst_p0[h * stride / 4 + w] = raw_dst_f[(h * width + w) * 3 + 2];
+                    dst_p0[h * stride / 4 + w] = raw_dst_f[(h * width + w) * 3 + isLittleEndian() ? 2 : 0];
                 }
                 for (int w = 0; w < width; ++w)
                 {
@@ -98,7 +104,7 @@ const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanc
                 }
                 for (int w = 0; w < width; ++w)
                 {
-                    dst_p2[h * stride / 4 + w] = raw_dst_f[(h * width + w) * 3 + 0];
+                    dst_p2[h * stride / 4 + w] = raw_dst_f[(h * width + w) * 3 + isLittleEndian() ? 0 : 2];
                 }
             }
         }
@@ -114,7 +120,7 @@ const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanc
             }
             p2p_dst.src[0] = raw_dst;
             p2p_dst.src_stride[0] = width * 3 * bps;
-            p2p_dst.packing = (bps == 2) ? p2p_rgb48_le : p2p_rgb24_le;
+            p2p_dst.packing = (bps == 2) ? p2p_rgb48 : p2p_rgb24;
             p2p_unpack_frame(&p2p_dst, 0);
         }
 
