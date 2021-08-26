@@ -11,9 +11,7 @@ iccc.ICCConvert(clip, simulation_icc, display_icc, soft_proofing=True, simulatio
 ```
 Intended for soft proofing.
 
-- Input `clip` must have one of the formats `RGB24`, `RGB48` and `RGBS`. The output has the same format.
-
-  Be aware that Little CMS is [almost not optimized](https://www.littlecms.com/plugin/) for float inputs, and the quality improvement from using floating-point formats is often not worthy.
+- The format of input `clip` must be either `RGB24` or `RGB48`. The output has the same format.
 
 - `simulation_icc` is the path to the ICC profile to simulate.
 

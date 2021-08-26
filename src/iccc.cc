@@ -3,12 +3,6 @@
 #include "vapoursynth/VSHelper.h"
 #include "libp2p/p2p_api.h"
 
-inline bool isLittleEndian()
-{
-    static constexpr uint32_t VAL = 0x00000001;
-    return (0xFFFFFFFF & 1) == VAL;
-}
-
 struct icccData
 {
     VSNodeRef *node = nullptr;
@@ -38,91 +32,40 @@ const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanc
         VSFrameRef *dst_frame = vsapi->newVideoFrame(d->vi->format, width, height, frame, core);
 
         int bps = d->vi->format->bytesPerSample;
-        int stride = vsapi->getStride(frame, 0);
 
         void *raw_src = vs_aligned_malloc(width * height * 3 * bps, 32);
         void *raw_dst = vs_aligned_malloc(width * height * 3 * bps, 32);
 
         // pack
-        if (bps == 4)
+        p2p_buffer_param p2p_src = {};
+        p2p_src.width = width;
+        p2p_src.height = height;
+        for (int plane = 0; plane < 3; ++plane)
         {
-            const float *src_p0 = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, 0));
-            const float *src_p1 = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, 1));
-            const float *src_p2 = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, 2));
-            float *raw_src_f = reinterpret_cast<float *>(raw_src);
-            for (int h = 0; h < height; ++h)
-            {
-                for (int w = 0; w < width; ++w)
-                {
-                    raw_src_f[(h * width + w) * 3 + isLittleEndian() ? 2 : 0] = src_p0[h * stride / 4 + w];
-                }
-                for (int w = 0; w < width; ++w)
-                {
-                    raw_src_f[(h * width + w) * 3 + 1] = src_p1[h * stride / 4 + w];
-                }
-                for (int w = 0; w < width; ++w)
-                {
-                    raw_src_f[(h * width + w) * 3 + isLittleEndian() ? 0 : 2] = src_p2[h * stride / 4 + w];
-                }
-            }
+            p2p_src.src[plane] = vsapi->getReadPtr(frame, plane);
+            p2p_src.src_stride[plane] = vsapi->getStride(frame, plane);
         }
-        else
-        {
-            p2p_buffer_param p2p_src = {};
-            p2p_src.width = width;
-            p2p_src.height = height;
-            for (int plane = 0; plane < 3; ++plane)
-            {
-                p2p_src.src[plane] = vsapi->getReadPtr(frame, plane);
-                p2p_src.src_stride[plane] = vsapi->getStride(frame, plane);
-            }
-            p2p_src.dst[0] = raw_src;
-            p2p_src.dst_stride[0] = width * 3 * bps;
-            p2p_src.packing = (bps == 2) ? p2p_rgb48 : p2p_rgb24;
-            p2p_pack_frame(&p2p_src, 0);
-        }
+        p2p_src.dst[0] = raw_src;
+        p2p_src.dst_stride[0] = width * 3 * bps;
+        p2p_src.packing = (bps == 2) ? p2p_rgb48 : p2p_rgb24;
+        p2p_pack_frame(&p2p_src, 0);
 
         // transform
         cmsDoTransform(d->transform, raw_src, raw_dst, static_cast<cmsUInt32Number>(width * height));
 
         // unpack
-        if (bps == 4)
+        p2p_buffer_param p2p_dst = {};
+        p2p_dst.width = width;
+        p2p_dst.height = height;
+        for (int plane = 0; plane < 3; ++plane)
         {
-            float *dst_p0 = reinterpret_cast<float *>(vsapi->getWritePtr(dst_frame, 0));
-            float *dst_p1 = reinterpret_cast<float *>(vsapi->getWritePtr(dst_frame, 1));
-            float *dst_p2 = reinterpret_cast<float *>(vsapi->getWritePtr(dst_frame, 2));
-            float *raw_dst_f = reinterpret_cast<float *>(raw_dst);
-            for (int h = 0; h < height; ++h)
-            {
-                for (int w = 0; w < width; ++w)
-                {
-                    dst_p0[h * stride / 4 + w] = raw_dst_f[(h * width + w) * 3 + isLittleEndian() ? 2 : 0];
-                }
-                for (int w = 0; w < width; ++w)
-                {
-                    dst_p1[h * stride / 4 + w] = raw_dst_f[(h * width + w) * 3 + 1];
-                }
-                for (int w = 0; w < width; ++w)
-                {
-                    dst_p2[h * stride / 4 + w] = raw_dst_f[(h * width + w) * 3 + isLittleEndian() ? 0 : 2];
-                }
-            }
+            p2p_dst.dst[plane] = vsapi->getWritePtr(dst_frame, plane);
+            p2p_dst.dst_stride[plane] = vsapi->getStride(dst_frame, plane);
         }
-        else
-        {
-            p2p_buffer_param p2p_dst = {};
-            p2p_dst.width = width;
-            p2p_dst.height = height;
-            for (int plane = 0; plane < 3; ++plane)
-            {
-                p2p_dst.dst[plane] = vsapi->getWritePtr(dst_frame, plane);
-                p2p_dst.dst_stride[plane] = vsapi->getStride(dst_frame, plane);
-            }
-            p2p_dst.src[0] = raw_dst;
-            p2p_dst.src_stride[0] = width * 3 * bps;
-            p2p_dst.packing = (bps == 2) ? p2p_rgb48 : p2p_rgb24;
-            p2p_unpack_frame(&p2p_dst, 0);
-        }
+        p2p_dst.src[0] = raw_dst;
+        p2p_dst.src_stride[0] = width * 3 * bps;
+        p2p_dst.packing = (bps == 2) ? p2p_rgb48 : p2p_rgb24;
+        p2p_unpack_frame(&p2p_dst, 0);
 
         vs_aligned_free(raw_src);
         vs_aligned_free(raw_dst);
@@ -157,11 +100,10 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     cmsUInt32Number lcmsDataType;
     if (d.vi->format->id == pfRGB48) lcmsDataType = TYPE_BGR_16;
     else if (d.vi->format->id == pfRGB24) lcmsDataType = TYPE_BGR_8;
-    else if (d.vi->format->id == pfRGBS) lcmsDataType = TYPE_BGR_FLT;
     else
     {
         vsapi->freeNode(d.node);
-        vsapi->setError(out, "iccc: Currently only RGB24, RGB48 and RGBS input formats are well supported.");
+        vsapi->setError(out, "iccc: Currently only RGB24 and RGB48 input formats are well supported.");
         return;
     }
 
@@ -322,11 +264,10 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     cmsUInt32Number lcmsDataType;
     if (d.vi->format->id == pfRGB48) lcmsDataType = TYPE_BGR_16;
     else if (d.vi->format->id == pfRGB24) lcmsDataType = TYPE_BGR_8;
-    else if (d.vi->format->id == pfRGBS) lcmsDataType = TYPE_BGR_FLT;
     else
     {
         vsapi->freeNode(d.node);
-        vsapi->setError(out, "iccc: Currently only RGB24, RGB48 and RGBS input formats are well supported.");
+        vsapi->setError(out, "iccc: Currently only RGB24 and RGB48 input formats are well supported.");
         return;
     }
 
