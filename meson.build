@@ -8,13 +8,17 @@ project('ICCConvert', ['c', 'cpp'],
 sources = [
     'src/iccc.cc',
     'src/1886.cc',
-    'src/libp2p/p2p_api.cpp',
-    'src/libp2p/v210.cpp'
 ]
 
 deps = []
 
-libs = []
+libs = static_library('libp2p', [
+    'src/libp2p/p2p_api.cpp',
+    'src/libp2p/v210.cpp',
+    'src/libp2p/simd/cpuinfo_x86.cpp',
+    'src/libp2p/simd/p2p_simd.cpp',
+    'src/libp2p/simd/p2p_sse41.cpp'
+], cpp_args: ['-DP2P_SIMD', '-msse4.2'])
 
 auto_profile_args = []
 
