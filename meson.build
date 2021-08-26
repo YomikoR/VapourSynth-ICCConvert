@@ -12,18 +12,28 @@ sources = [
 
 deps = []
 
-libs = static_library('libp2p', [
-    'src/libp2p/p2p_api.cpp',
-    'src/libp2p/v210.cpp',
-    'src/libp2p/simd/cpuinfo_x86.cpp',
-    'src/libp2p/simd/p2p_simd.cpp',
-    'src/libp2p/simd/p2p_sse41.cpp'
-], cpp_args: ['-DP2P_SIMD', '-msse4.2'])
+libs = []
 
 auto_profile_args = []
 
 link_args = []
 
+# libp2p
+libs += static_library('libp2p_main',
+    [
+        'src/libp2p/p2p_api.cpp',
+        'src/libp2p/v210.cpp',
+        'src/libp2p/simd/cpuinfo_x86.cpp',
+        'src/libp2p/simd/p2p_simd.cpp',
+    ],
+    cpp_args: ['-DP2P_SIMD', '-std=c++14']
+)
+
+libs += static_library('libp2p_sse41', 'src/libp2p/simd/p2p_sse41.cpp',
+    cpp_args: ['-DP2P_SIMD', '-std=c++14', '-msse4.1']
+)
+
+# detection
 if host_machine.system() == 'linux'
     deps += dependency('lcms2')
     dep_xrandr = dependency('xrandr', required: false, version: '>= 1.2')
