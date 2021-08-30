@@ -29,12 +29,11 @@ const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanc
         const VSFrameRef *frame = vsapi->getFrameFilter(n, d->node, frameCtx);
         int width = d->vi->width;
         int height = d->vi->height;
+        int stride = vsapi->getStride(frame, 0);
+        int bps = d->vi->format->bytesPerSample;
         VSFrameRef *dst_frame = vsapi->newVideoFrame(d->vi->format, width, height, frame, core);
 
-        int bps = d->vi->format->bytesPerSample;
-
-        void *raw_src = vs_aligned_malloc(width * height * 3 * bps, 32);
-        void *raw_dst = vs_aligned_malloc(width * height * 3 * bps, 32);
+        void *packed = vs_aligned_malloc(stride * height * 3, 32);
 
         // pack
         p2p_buffer_param p2p_src = {};
@@ -45,13 +44,13 @@ const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanc
             p2p_src.src[plane] = vsapi->getReadPtr(frame, plane);
             p2p_src.src_stride[plane] = vsapi->getStride(frame, plane);
         }
-        p2p_src.dst[0] = raw_src;
-        p2p_src.dst_stride[0] = width * 3 * bps;
+        p2p_src.dst[0] = packed;
+        p2p_src.dst_stride[0] = stride * 3;
         p2p_src.packing = (bps == 2) ? p2p_rgb48 : p2p_rgb24;
         p2p_pack_frame(&p2p_src, 0);
 
         // transform
-        cmsDoTransform(d->transform, raw_src, raw_dst, static_cast<cmsUInt32Number>(width * height));
+        cmsDoTransformLineStride(d->transform, packed, packed, width, height, stride * 3, stride * 3, 0, 0);
 
         // unpack
         p2p_buffer_param p2p_dst = {};
@@ -62,13 +61,12 @@ const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanc
             p2p_dst.dst[plane] = vsapi->getWritePtr(dst_frame, plane);
             p2p_dst.dst_stride[plane] = vsapi->getStride(dst_frame, plane);
         }
-        p2p_dst.src[0] = raw_dst;
-        p2p_dst.src_stride[0] = width * 3 * bps;
+        p2p_dst.src[0] = packed;
+        p2p_dst.src_stride[0] = stride * 3;
         p2p_dst.packing = (bps == 2) ? p2p_rgb48 : p2p_rgb24;
         p2p_unpack_frame(&p2p_dst, 0);
 
-        vs_aligned_free(raw_src);
-        vs_aligned_free(raw_dst);
+        vs_aligned_free(packed);
         vsapi->freeFrame(frame);
         return dst_frame;
     }
