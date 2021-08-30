@@ -113,6 +113,12 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         vsapi->setError(out, "iccc: Input destination profile seems to be invalid.");
         return;
     }
+    else if ((cmsGetDeviceClass(lcmsProfileSimulation) != cmsSigDisplayClass) && (cmsGetDeviceClass(lcmsProfileSimulation) != cmsSigInputClass))
+    {
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input destination profile must have 'display' ('mntr') or 'input' ('scnr') device class.");
+        return;
+    }
     cmsHPROFILE lcmsProfileDisplay;
     const char *dst_profile = vsapi->propGetData(in, "display_icc", 0, &err);
     if (err || !dst_profile)
@@ -133,11 +139,19 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         vsapi->setError(out, "iccc: Input display profile seems to be invalid.");
         return;
     }
+    else if (cmsGetDeviceClass(lcmsProfileDisplay) != cmsSigDisplayClass)
+    {
+        cmsCloseProfile(lcmsProfileSimulation);
+        cmsCloseProfile(lcmsProfileDisplay);
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input display profile must have 'display' ('mntr') device class.");
+        return;
+    }
 
     bool soft_proofing = vsapi->propGetInt(in, "soft_proofing", 0, &err);
     if (err)
     {
-        soft_proofing = true;
+        soft_proofing = (cmsGetDeviceClass(lcmsProfileSimulation) == cmsSigDisplayClass);
     }
 
     cmsUInt32Number lcmsIntentSimulation;
