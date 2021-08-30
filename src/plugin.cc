@@ -1,11 +1,11 @@
-#include "vapoursynth/VapourSynth.h"
+#include "common.hpp"
 
 extern void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 extern void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
 {
-    configFunc("Yomiko.collection.iccconvert", "iccc", "ICC Conversion", VAPOURSYNTH_API_VERSION, 1, plugin);
+    configFunc(ICCC_PLUGIN_ID, "iccc", "ICC Conversion", VAPOURSYNTH_API_VERSION, 1, plugin);
 
     registerFunc("ICCConvert",
         "clip:clip;"

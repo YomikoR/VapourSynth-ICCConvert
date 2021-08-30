@@ -2,6 +2,10 @@
 #define _ICCC_COMMON
 
 #include <lcms2.h>
+#include "vapoursynth/VapourSynth.h"
+#include "vapoursynth/VSHelper.h"
+
+#define ICCC_PLUGIN_ID "Yomiko.collection.iccconvert"
 
 #if defined (_WIN32)
 # define DETECTION_IMPLEMENTED 1
