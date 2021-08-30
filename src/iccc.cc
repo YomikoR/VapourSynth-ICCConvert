@@ -301,6 +301,13 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         vsapi->setError(out, "iccc: Input display profile seems to be invalid.");
         return;
     }
+    else if (cmsGetDeviceClass(lcmsProfileDisplay) != cmsSigDisplayClass)
+    {
+        cmsCloseProfile(lcmsProfileDisplay);
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input display profile must have 'display' ('mntr') device class.");
+        return;
+    }
 
     double gamma = vsapi->propGetFloat(in, "gamma", 0, &err);
     if (err)
