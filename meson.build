@@ -52,6 +52,13 @@ if host_machine.system() == 'linux'
         endif
         sources += ['src/detection/x11.c']
     endif
+    dep_magick = dependency('imagemagick', required: false, version: '>= 7')
+    if dep_magick.found()
+        auto_profile_args += '-DHAVE_MAGICK'
+        deps += dep_magick
+        sources += 'src/extract.cc'
+        sources += 'src/magick/mextract.cc'
+    endif
 elif host_machine.system() == 'windows'
     deps += dependency('lcms2', static: true)
     sources += ['src/detection/win32.c']
