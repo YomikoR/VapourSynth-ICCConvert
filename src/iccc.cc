@@ -154,43 +154,43 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         soft_proofing = (cmsGetDeviceClass(lcmsProfileSimulation) == cmsSigDisplayClass);
     }
 
-    cmsUInt32Number lcmsIntentSimulation;
-    const char *sim_intent = vsapi->propGetData(in, "simulation_intent", 0, &err);
+    cmsUInt32Number lcmsIntentDisplay;
+    const char* dis_intent = vsapi->propGetData(in, "display_intent", 0, &err);
     if (err)
     {
-        lcmsIntentSimulation = INTENT_RELATIVE_COLORIMETRIC;
+        lcmsIntentDisplay = INTENT_PERCEPTUAL;
     }
-    else if (strcmp(sim_intent, "perceptual") == 0) lcmsIntentSimulation = INTENT_PERCEPTUAL;
-    else if (strcmp(sim_intent, "relative") == 0) lcmsIntentSimulation = INTENT_RELATIVE_COLORIMETRIC;
-    else if (strcmp(sim_intent, "saturation") == 0) lcmsIntentSimulation = INTENT_SATURATION;
-    else if (strcmp(sim_intent, "absolute") == 0) lcmsIntentSimulation = INTENT_ABSOLUTE_COLORIMETRIC;
+    else if (strcmp(dis_intent, "perceptual") == 0) lcmsIntentDisplay = INTENT_PERCEPTUAL;
+    else if (strcmp(dis_intent, "relative") == 0) lcmsIntentDisplay = INTENT_RELATIVE_COLORIMETRIC;
+    else if (strcmp(dis_intent, "saturation") == 0) lcmsIntentDisplay = INTENT_SATURATION;
+    else if (strcmp(dis_intent, "absolute") == 0) lcmsIntentDisplay = INTENT_ABSOLUTE_COLORIMETRIC;
     else
     {
         cmsCloseProfile(lcmsProfileSimulation);
         cmsCloseProfile(lcmsProfileDisplay);
         vsapi->freeNode(d.node);
-        vsapi->setError(out, "iccc: Input ICC intent for simulation is not supported.");
+        vsapi->setError(out, "iccc: Input ICC intent for display is not supported.");
         return;
     }
 
-    cmsUInt32Number lcmsIntentDisplay;
+    cmsUInt32Number lcmsIntentSimulation;
     if (soft_proofing)
     {
-        const char *dis_intent = vsapi->propGetData(in, "display_intent", 0, &err);
+        const char* sim_intent = vsapi->propGetData(in, "simulation_intent", 0, &err);
         if (err)
         {
-            lcmsIntentDisplay = INTENT_PERCEPTUAL;
+            lcmsIntentSimulation = INTENT_RELATIVE_COLORIMETRIC;
         }
-        else if (strcmp(dis_intent, "perceptual") == 0) lcmsIntentDisplay = INTENT_PERCEPTUAL;
-        else if (strcmp(dis_intent, "relative") == 0) lcmsIntentDisplay = INTENT_RELATIVE_COLORIMETRIC;
-        else if (strcmp(dis_intent, "saturation") == 0) lcmsIntentDisplay = INTENT_SATURATION;
-        else if (strcmp(dis_intent, "absolute") == 0) lcmsIntentDisplay = INTENT_ABSOLUTE_COLORIMETRIC;
+        else if (strcmp(sim_intent, "perceptual") == 0) lcmsIntentSimulation = INTENT_PERCEPTUAL;
+        else if (strcmp(sim_intent, "relative") == 0) lcmsIntentSimulation = INTENT_RELATIVE_COLORIMETRIC;
+        else if (strcmp(sim_intent, "saturation") == 0) lcmsIntentSimulation = INTENT_SATURATION;
+        else if (strcmp(sim_intent, "absolute") == 0) lcmsIntentSimulation = INTENT_ABSOLUTE_COLORIMETRIC;
         else
         {
             cmsCloseProfile(lcmsProfileSimulation);
             cmsCloseProfile(lcmsProfileDisplay);
             vsapi->freeNode(d.node);
-            vsapi->setError(out, "iccc: Input ICC intent for display is not supported.");
+            vsapi->setError(out, "iccc: Input ICC intent for simulation is not supported.");
             return;
         }
     }
@@ -246,7 +246,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     else
     {
-        d.transform = cmsCreateTransform(lcmsProfileSimulation, lcmsDataType, lcmsProfileDisplay, lcmsDataType, lcmsIntentSimulation, dwFlag);
+        d.transform = cmsCreateTransform(lcmsProfileSimulation, lcmsDataType, lcmsProfileDisplay, lcmsDataType, lcmsIntentDisplay, dwFlag);
     }
 
     cmsCloseProfile(lcmsProfileSimulation);

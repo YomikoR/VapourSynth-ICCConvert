@@ -36,7 +36,7 @@ Intended for soft proofing.
    - "relative"   for Relative Colorimetric (default for simulation)
    - "absolute"   for Absolute Colorimetric
 
-    If not in soft proofing mode, only `simulation_intent` will be taken.
+    If not in soft proofing mode, only `display_intent` will be taken.
 
  - `gamut_warning` is the flag for out-of-gamut warning. A certain color will fill the overflowing region. Default off.
 
