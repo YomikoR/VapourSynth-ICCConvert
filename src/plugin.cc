@@ -7,7 +7,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
 {
     configFunc(ICCC_PLUGIN_ID, "iccc", "ICC Conversion", VAPOURSYNTH_API_VERSION, 1, plugin);
 
-    registerFunc("ICCConvert",
+    registerFunc("Convert",
         "clip:clip;"
         "simulation_icc:data;"
         "display_icc:data:opt;"
@@ -19,7 +19,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
         "clut_size:int:opt",
         icccCreate, nullptr, plugin);
 
-    registerFunc("ICCPlayback",
+    registerFunc("Playback",
         "clip:clip;"
         "display_icc:data:opt;"
         "playback_csp:data:opt;"

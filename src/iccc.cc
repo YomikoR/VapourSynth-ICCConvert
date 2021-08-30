@@ -254,7 +254,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     icccData *data = new icccData(d);
 
-    vsapi->createFilter(in, out, "ICCConvert", icccInit, icccGetFrame, icccFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "Convert", icccInit, icccGetFrame, icccFree, fmParallel, 0, data, core);
 }
 
 void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
@@ -422,5 +422,5 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     icccData *data = new icccData(d);
 
-    vsapi->createFilter(in, out, "ICCPlayback", icccInit, icccGetFrame, icccFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "Playback", icccInit, icccGetFrame, icccFree, fmParallel, 0, data, core);
 }
