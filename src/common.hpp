@@ -5,7 +5,7 @@
 #include "vapoursynth/VapourSynth.h"
 #include "vapoursynth/VSHelper.h"
 
-#define ICCC_PLUGIN_ID "Yomiko.collection.iccconvert"
+#define ICCC_PLUGIN_ID "yomiko.collection.iccconvert"
 
 #if defined (_WIN32)
 # define DETECTION_IMPLEMENTED 1
