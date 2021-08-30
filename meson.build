@@ -8,6 +8,7 @@ project('ICCConvert', ['c', 'cpp'],
 sources = [
     'src/iccc.cc',
     'src/1886.cc',
+    'src/plugin.cc',
 ]
 
 deps = []
