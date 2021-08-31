@@ -56,7 +56,7 @@ if host_machine.system() == 'linux'
     if dep_magick.found()
         auto_profile_args += '-DHAVE_MAGICK'
         sources += 'src/extract.cc'
-        sources += 'src/magick/mextract.cc'
+        sources += 'src/magick/magick.cc'
     endif
 elif host_machine.system() == 'windows'
     deps += dependency('lcms2', static: true)
