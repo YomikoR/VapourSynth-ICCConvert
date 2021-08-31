@@ -2,7 +2,7 @@ project('ICCConvert', ['c', 'cpp'],
     license: 'LGPL2.1+',
     default_options: ['buildtype=release', 'b_ndebug=if-release', 'c_std=c11', 'cpp_std=c++17', 'optimization=2'],
     meson_version: '>=0.51.0',
-    version: '2.5'
+    version: '3.0'
 )
 
 sources = [
@@ -55,7 +55,6 @@ if host_machine.system() == 'linux'
     dep_magick = dependency('imagemagick', required: false, version: '>= 7')
     if dep_magick.found()
         auto_profile_args += '-DHAVE_MAGICK'
-        deps += dep_magick
         sources += 'src/extract.cc'
         sources += 'src/magick/mextract.cc'
     endif

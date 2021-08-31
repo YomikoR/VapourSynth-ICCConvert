@@ -14,7 +14,7 @@ void VS_CC icccInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VS
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
-const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
+static const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
 {
     icccData *d = static_cast<icccData *>(*instanceData);
 
