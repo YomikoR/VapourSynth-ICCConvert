@@ -151,7 +151,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     bool soft_proofing = vsapi->propGetInt(in, "soft_proofing", 0, &err);
     if (err)
     {
-        soft_proofing = (cmsGetDeviceClass(lcmsProfileSimulation) == cmsSigDisplayClass);
+        soft_proofing = (cmsGetDeviceClass(lcmsProfileSimulation) == cmsSigDisplayClass) && (cmsGetDeviceClass(lcmsProfileDisplay) == cmsSigDisplayClass);
     }
 
     cmsUInt32Number lcmsIntentDisplay;
