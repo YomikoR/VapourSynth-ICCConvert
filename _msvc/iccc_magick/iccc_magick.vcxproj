@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\magick\mextract.cc" />
+    <ClCompile Include="..\..\src\magick\magick.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\magick\magick.hpp" />

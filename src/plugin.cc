@@ -1,10 +1,13 @@
 #include "common.hpp"
 #include <string>
 #include <cstring>
+#include <vector>
+#include <iterator>
 
 extern void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 extern void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 #if defined(HAVE_MAGICK)
+#include "magick/magick.hpp"
 extern void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 #endif
 
@@ -13,7 +16,7 @@ extern void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 static char dummy;
 
-static void check_dll_func(const char *func_name, std::string &ret)
+static void check_dll_func(std::vector<const char *> func_names, std::string &ret)
 {
     // Get this DLL
     char path[MAX_PATH - 8];
@@ -44,8 +47,17 @@ static void check_dll_func(const char *func_name, std::string &ret)
         ret.clear();
         return;
     }
-    // resolve function by name
-    if(GetProcAddress(mmodule, func_name))
+    // resolve functions by name
+    bool all_resolved = true;
+    for (const char* func_name : func_names)
+    {
+        if (!GetProcAddress(mmodule, func_name))
+        {
+            all_resolved = false;
+            break;
+        }
+    }
+    if(all_resolved)
     {
         FreeLibrary(mmodule);
         ret.clear();
@@ -89,7 +101,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
 #if defined(HAVE_MAGICK)
 #if defined(_WIN32)
     static std::string dll_path_s;
-    check_dll_func("magick_load_icc", dll_path_s);
+    std::vector<const char*> func_names(std::begin(magick_function_list), std::end(magick_function_list));
+    check_dll_func(func_names, dll_path_s);
     if (!dll_path_s.empty())
     {
         registerFunc("Extract",

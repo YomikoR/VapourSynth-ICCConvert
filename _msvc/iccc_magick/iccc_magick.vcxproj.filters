@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\magick\mextract.cc">
+    <ClCompile Include="..\..\src\magick\magick.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -17,7 +17,12 @@
 #define EXPORT_WHEN_W32(ret) ret VS_CC
 #endif
 
-
 typedef cmsHPROFILE (*f_magick_load_icc)(const char *input);
+typedef bool (*f_magick_close_icc)(cmsHPROFILE profile);
+
+constexpr const char* magick_function_list[2] = {
+    "magick_load_icc",
+    "magick_close_icc"
+};
 
 #endif

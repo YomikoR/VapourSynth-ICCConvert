@@ -24,6 +24,11 @@ EXPORT_WHEN_W32(cmsHPROFILE) magick_load_icc(const char *input)
     return profile;
 }
 
+EXPORT_WHEN_W32(cmsBool) magick_close_icc(cmsHPROFILE profile)
+{
+    return cmsCloseProfile(profile);
+}
+
 #else
 # error This file should not be compiled.
 #endif

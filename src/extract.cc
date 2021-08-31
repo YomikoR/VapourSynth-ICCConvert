@@ -8,13 +8,14 @@
 #include <windows.h>
 #else
 extern cmsHPROFILE magick_load_icc(const char *input);
+extern cmsBool magick_close_icc(cmsHPROFILE profile);
 #endif
 
 void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
 {
 #if defined(_WIN32)
     f_magick_load_icc magick_load_icc;
-
+    f_magick_close_icc magick_close_icc;
     std::string *magick_dll_path_p = static_cast<std::string *>(userData);
     HMODULE mmodule = LoadLibraryA(magick_dll_path_p->c_str());
     if (!mmodule)
@@ -23,9 +24,10 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         return;
     }
     magick_load_icc = (f_magick_load_icc)GetProcAddress(mmodule, "magick_load_icc");
-    if (!magick_load_icc)
+    magick_close_icc = (f_magick_close_icc)GetProcAddress(mmodule, "magick_close_icc");
+    if (!magick_load_icc || !magick_close_icc)
     {
-        vsapi->setError(out, "iccc: Failed to resolve function from the associated libiccc_magick.dll.");
+        vsapi->setError(out, "iccc: Failed to resolve functions from the associated libiccc_magick.dll.");
         return;
     }
 #endif
@@ -59,8 +61,10 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     bool fallback_srgb = vsapi->propGetInt(in, "fallback_srgb", 0, &err);
     if (err) fallback_srgb = true;
     cmsHPROFILE profile = magick_load_icc(input.c_str());
+    bool has_embedded = true;
     if (!profile)
     {
+        has_embedded = false;
         if (fallback_srgb) profile = cmsCreate_sRGBProfile();
         else
         {
@@ -75,7 +79,10 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     vsapi->propSetData(out, "path", output.c_str(), output.size(), paReplace);
 #if defined(_WIN32)
+    has_embedded ? magick_close_icc(profile) : cmsCloseProfile(profile);
     FreeModule(mmodule);
+#else
+    cmsCloseProfile(profile);
 #endif
 }
 
