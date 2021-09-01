@@ -38,6 +38,13 @@ Intended for color profile conversion and soft proofing.
 
     If not in soft proofing mode, only `display_intent` will be taken.
 
+    Not all rendering intents are supported by all display profiles. If the profile is not providing sufficient information for selected intent, Little CMS has the following fallback order:
+
+    - Perceptual: the default intent of the profile.
+    - Relative Colorimetric: perceptual.
+    - Saturation: perceptual.
+    - Absolute Colorimetric: relative colorimetric intent, with undoing of chromatic adaptation.
+
  - `gamut_warning` is the flag for out-of-gamut warning. A certain color will fill the overflowing region. Default off.
 
  - `black_point_compensation` is the flag for what it tells. Default off.
@@ -66,8 +73,9 @@ For viewing images, instead, you may also set `playback_csp` as `'srgb'`.
 ```python
 iccc.Extract(filename, output=<filename>.icc, overwrite=False, fallback_srgb=True)
 ```
-Extract embedded color profile from single image. When there's no embedded profile, sRGB can be a fallback option.
-When things are processed as expected, the return value is the path to the saved profile (in bytes format in Python, while you can use it as an input argument of other plugins).
+Extract embedded color profile from single image, and read its default rendering intent. When there's no embedded profile, sRGB can be a fallback option.
+
+When things are processed as expected, it returns a `dict` with key `path` for the location of extracted ICC file, and key `intent` for the name of its default rendering intent. The naming convention is for using as an argument of the above functions.
 
 ---
 
