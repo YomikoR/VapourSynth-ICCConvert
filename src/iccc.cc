@@ -170,7 +170,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     const char* dis_intent = vsapi->propGetData(in, "display_intent", 0, &err);
     if (err)
     {
-        lcmsIntentDisplay = INTENT_PERCEPTUAL;
+        lcmsIntentDisplay = cmsGetHeaderRenderingIntent(lcmsProfileDisplay);
     }
     else if (strcmp(dis_intent, "perceptual") == 0) lcmsIntentDisplay = INTENT_PERCEPTUAL;
     else if (strcmp(dis_intent, "relative") == 0) lcmsIntentDisplay = INTENT_RELATIVE_COLORIMETRIC;
@@ -191,7 +191,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         const char* sim_intent = vsapi->propGetData(in, "simulation_intent", 0, &err);
         if (err)
         {
-            lcmsIntentSimulation = INTENT_RELATIVE_COLORIMETRIC;
+            lcmsIntentSimulation = cmsGetHeaderRenderingIntent(lcmsProfileSimulation);
         }
         else if (strcmp(sim_intent, "perceptual") == 0) lcmsIntentSimulation = INTENT_PERCEPTUAL;
         else if (strcmp(sim_intent, "relative") == 0) lcmsIntentSimulation = INTENT_RELATIVE_COLORIMETRIC;
