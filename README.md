@@ -7,7 +7,7 @@ Little CMS based ICC profile simulation for VapourSynth.
 ## Usage
 
 ```python
-iccc.Convert(clip, simulation_icc, display_icc, soft_proofing=True, simulation_intent='relative', display_intent='perceptual', gamut_warning=False, black_point_compensation=False, clut_size=49)
+iccc.Convert(clip, simulation_icc, display_icc, soft_proofing=True, simulation_intent=<from profile>, display_intent=<from profile>, gamut_warning=False, black_point_compensation=False, clut_size=49)
 ```
 Intended for color profile conversion and soft proofing.
 
@@ -36,9 +36,11 @@ Intended for color profile conversion and soft proofing.
    - "relative"   for Relative Colorimetric
    - "absolute"   for Absolute Colorimetric
 
+    Default values are taken from the corresponding profile headers.
+
     If not in soft proofing mode, only `simulation_intent` will be taken.
 
-    Not all rendering intents are supported by all display profiles. If the profile is not providing sufficient information for selected intent, Little CMS has the following fallback order:
+    Not all rendering intents are supported by all display profiles. If the profile is not providing sufficient information for selected intent, Little CMS has the following fallback rules:
 
     - Perceptual: the default intent of the profile.
     - Relative Colorimetric: perceptual.
