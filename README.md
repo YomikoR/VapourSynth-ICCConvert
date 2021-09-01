@@ -9,13 +9,13 @@ Little CMS based ICC profile simulation for VapourSynth.
 ```python
 iccc.Convert(clip, simulation_icc, display_icc, soft_proofing=True, simulation_intent='relative', display_intent='perceptual', gamut_warning=False, black_point_compensation=False, clut_size=49)
 ```
-Intended for soft proofing.
+Intended for color profile conversion and soft proofing.
 
 - The format of input `clip` must be either `RGB24` or `RGB48`. The output has the same format.
 
-- `simulation_icc` is the path to the ICC profile to simulate.
+- `simulation_icc` is the path to the ICC profile to simulate (input profile for conversion).
 
-- `display_icc` is the path to the ICC profile for your monitor.
+- `display_icc` is the path to the ICC profile for your monitor (output profile for conversion).
 
   In Windows and in Linux X11, this parameter is *optional*. The default profile is detected for the current window (e.g. the editor window of VapourSynth Editor, or the console window used to launch vapoursynth-preview, but *not* their preview windows). Procedures of detection are a little different:
   - Windows: *foreground* window -> monitor -> ICC profile
@@ -26,11 +26,9 @@ Intended for soft proofing.
 
   It's strongly recommended to manually specify the ICC profile for production purpose.
 
-- `soft_proofing` is the flag for soft proofing. Default on. Disable to apply simple conversion, otherwise it further takes a backward step for the proofing.
+- `soft_proofing` is the flag for soft proofing. When enabled, it takes an additional backward step for the proofing. Otherwise simple conversion is applied. [Here](https://sourceforge.net/p/lcms/mailman/message/36783703/) is a brief introduction about how Little CMS handles it.
 
-  If the device class of the input profile is input (scnr) only, then `soft_proofing` is automatically disabled, without reporting an error.
- 
-  [Here](https://sourceforge.net/p/lcms/mailman/message/36783703/) is a brief introduction about how Little CMS handles it.
+  Soft proofing requires both profiles are of display (`mntr`) device class. When such condition is not met, `soft_proofing` is automatically disabled, without reporting an error.
 
  - `simulation_intent` and `display_intent` are corresponding to the ICC rendering intents for simulation and for display, respectively, see [this link](https://helpx.adobe.com/photoshop-elements/kb/color-management-settings-best-print.html#main-pars_header_1). Possible options are
    - "perceptual" for Perceptual (default for display)
@@ -55,7 +53,7 @@ Intended for soft proofing.
 ```python
 iccc.Playback(clip, display_icc, playback_csp='709', gamma=None, intent='relative', black_point_compensation=True, clut_size=49)
 ```
-One-way color profile mapping for video playback with BT.1886 configuration, or overridden by a given float value of `gamma` (e.g. 2.4 for OLED displays).
+Video playback with BT.1886 configuration, or overridden by a given float value of `gamma` (e.g. 2.4 for OLED displays). This should have the same behavior as the [mpv player](https://mpv.io/).
 
 Currently supported `playback_csp` options are the following:
 - `'709'` for HD
@@ -63,7 +61,7 @@ Currently supported `playback_csp` options are the following:
 - `'601-525'`, `'170m'` or `'240m'` for SD (NTSC)
 - `'601-625'`, `'470bg'` for SD (PAL)
 
-However, you may also set it as `'srgb'` for images.
+For viewing images, instead, you may also set `playback_csp` as `'srgb'`.
 
 ```python
 iccc.Extract(filename, output=<filename>.icc, overwrite=False, fallback_srgb=True)
