@@ -7,7 +7,7 @@
 #if defined(_WIN32)
 #include <windows.h>
 #else
-extern cmsHPROFILE magick_load_icc(const char *input);
+extern magick_icc_profile magick_load_icc(const char *input);
 extern cmsBool magick_close_icc(cmsHPROFILE profile);
 #endif
 
@@ -38,51 +38,76 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         vsapi->setError(out, "iccc: Input image path seems not valid.");
         return;
     }
-    const char *output_c = vsapi->propGetData(in, "output", 0, &err);
-    std::string output; // cannot be constructed from nullptr
-    if (err || !output_c)
+
+    // Get icc and intent from ImageMagick
+    magick_icc_profile mprofile = magick_load_icc(input.c_str());
+
+    // Exception by ImageMagick (e.g. file not found)
+    if (!mprofile.error_info.empty())
     {
-        output = input.append(".icc");
+        vsapi->setError(out, (std::string("iccc: ImageMagick reports the following error:\n") + mprofile.error_info).c_str());
+        if (!mprofile.icc) magick_close_icc(mprofile.icc);
+#if defined(_WIN32)
+        FreeModule(mmodule);
+#endif
+        return;
     }
-    else
-    {
-        output = output_c;
-    }
-    if (std::filesystem::exists(output))
-    {
-        bool overwrite = vsapi->propGetInt(in, "overwrite", 0, &err);
-        if (err) overwrite = false;
-        if (!overwrite)
-        {
-            vsapi->propSetData(out, "path", output.c_str(), output.size(), paAppend);
-            return;
-        }
-    }
-    bool fallback_srgb = vsapi->propGetInt(in, "fallback_srgb", 0, &err);
-    if (err) fallback_srgb = true;
-    cmsHPROFILE profile = magick_load_icc(input.c_str());
+
+    // Fallback to sRGB?
     bool has_embedded = true;
-    if (!profile)
+    if (!mprofile.icc)
     {
         has_embedded = false;
-        if (fallback_srgb) profile = cmsCreate_sRGBProfile();
+        bool fallback_srgb = vsapi->propGetInt(in, "fallback_srgb", 0, &err);
+        if (err) fallback_srgb = true;
+        if (fallback_srgb)
+        {
+            mprofile.icc = cmsCreate_sRGBProfile();
+            mprofile.intent = INTENT_PERCEPTUAL;
+        }
         else
         {
+#if defined(_WIN32)
+            FreeModule(mmodule);
+#endif
             vsapi->setError(out, "iccc: Failed to extract color profile.");
             return;
         }
     }
-    if (!cmsSaveProfileToFile(profile, output.c_str()))
+
+    // Write icc to file
+    bool write_icc = true;
+    const char *output = vsapi->propGetData(in, "output", 0, &err);
+    if (err || !output)
     {
+        output = (input + ".icc").c_str();
+    }
+    if (std::filesystem::exists(output))
+    {
+        write_icc = vsapi->propGetInt(in, "overwrite", 0, &err);
+        if (err) write_icc = false;
+    }
+    if (write_icc && !cmsSaveProfileToFile(mprofile.icc, output))
+    {
+        if (has_embedded) magick_close_icc(mprofile.icc);
+#if defined(_WIN32)
+        FreeModule(mmodule);
+#endif
         vsapi->setError(out, "iccc: Failed to write profile to destination.");
         return;
     }
-    vsapi->propSetData(out, "path", output.c_str(), output.size(), paReplace);
+
+    // Set output
+    vsapi->propSetData(out, "path", output, std::strlen(output), paReplace);
+    const char *intent_name = print_intent(mprofile.intent);
+    vsapi->propSetData(out, "intent", intent_name, std::strlen(intent_name), paReplace);
+
 #if defined(_WIN32)
-    has_embedded ? magick_close_icc(profile) : cmsCloseProfile(profile);
+    // If the profile comes from DLL, we must close in DLL
+    has_embedded ? magick_close_icc(mprofile.icc) : cmsCloseProfile(mprofile.icc);
     FreeModule(mmodule);
 #else
-    cmsCloseProfile(profile);
+    cmsCloseProfile(mprofile.icc);
 #endif
 }
 

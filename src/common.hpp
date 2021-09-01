@@ -52,4 +52,16 @@ const cspData csp_2020 = {0.3127, 0.3290, 0.708, 0.292, 0.17, 0.797, 0.131, 0.04
 
 cmsHPROFILE get_profile_playback(const cspData &csp, const double gamma, const cmsHPROFILE &lcmsProfileDisplay);
 
+inline const char *print_intent(int intent)
+{
+    static const char *intent_names[4] = {
+        "perceptual",
+        "relative",
+        "saturation",
+        "absolute"
+    };
+    if (intent >= 0 && intent <= 3) return intent_names[intent];
+    else return "unknown";
+}
+
 #endif

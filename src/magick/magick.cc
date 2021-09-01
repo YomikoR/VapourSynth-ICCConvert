@@ -2,26 +2,26 @@
 #include "magick.hpp"
 #include <iostream>
 
-EXPORT_WHEN_W32(cmsHPROFILE) magick_load_icc(const char *input)
+EXPORT_WHEN_W32(magick_icc_profile) magick_load_icc(const char *input)
 {
-    cmsHPROFILE profile = nullptr;
+    magick_icc_profile mprofile;
     try
     {
         Magick::InitializeMagick("");
         Magick::Image image(input);
-        Magick::Blob blob(image.profile("ICC"));
-        if (blob.length() > 0)
+        const MagickCore::StringInfo *profile_s = MagickCore::GetImageProfile(image.constImage(), "icc");
+        if (profile_s) // has embedded
         {
-            profile = cmsOpenProfileFromMem(blob.data(), blob.length());
+            mprofile.icc = cmsOpenProfileFromMem(profile_s->datum, profile_s->length);
+            mprofile.intent = magick_2_lcms_intent(image.renderingIntent());
         }
         Magick::TerminateMagick();
     }
     catch (Magick::Exception &e)
     {
-        std::cerr << "iccc: Exception from ImageMagick: \n" << e.what() << std::endl;
-        return nullptr;
+        mprofile.error_info.assign(e.what());
     }
-    return profile;
+    return mprofile;
 }
 
 EXPORT_WHEN_W32(cmsBool) magick_close_icc(cmsHPROFILE profile)
