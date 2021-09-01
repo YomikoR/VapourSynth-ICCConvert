@@ -25,11 +25,15 @@ struct magick_icc_profile
 };
 
 typedef magick_icc_profile (*f_magick_load_icc)(const char *input);
-typedef bool (*f_magick_close_icc)(cmsHPROFILE profile);
+typedef cmsBool (*f_magick_close_icc)(cmsHPROFILE profile);
+typedef cmsBool (*f_magick_write_icc)(cmsHPROFILE profile, const char* output);
+typedef cmsHPROFILE(*f_magick_create_srgb_icc)(void);
 
-constexpr const char* magick_function_list[2] = {
+constexpr const char* magick_function_list[] = {
     "magick_load_icc",
-    "magick_close_icc"
+    "magick_close_icc",
+    "magick_write_icc",
+    "magick_create_srgb_icc"
 };
 
 #endif
