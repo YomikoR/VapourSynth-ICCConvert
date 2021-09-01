@@ -110,13 +110,19 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     if (err || !(lcmsProfileSimulation = cmsOpenProfileFromFile(src_profile, "r")))
     {
         vsapi->freeNode(d.node);
-        vsapi->setError(out, "iccc: Input destination profile seems to be invalid.");
+        vsapi->setError(out, "iccc: Input simulated profile seems to be invalid.");
         return;
     }
     else if ((cmsGetDeviceClass(lcmsProfileSimulation) != cmsSigDisplayClass) && (cmsGetDeviceClass(lcmsProfileSimulation) != cmsSigInputClass))
     {
         vsapi->freeNode(d.node);
-        vsapi->setError(out, "iccc: Input destination profile must have 'display' ('mntr') or 'input' ('scnr') device class.");
+        vsapi->setError(out, "iccc: Input simulated profile must have 'display' ('mntr') or 'input' ('scnr') device class.");
+        return;
+    }
+    else if (cmsGetColorSpace(lcmsProfileSimulation) != cmsSigRgbData)
+    {
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input simulated profile must be for RGB colorspace.");
         return;
     }
     cmsHPROFILE lcmsProfileDisplay;
@@ -139,12 +145,18 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         vsapi->setError(out, "iccc: Input display profile seems to be invalid.");
         return;
     }
-    else if (cmsGetDeviceClass(lcmsProfileDisplay) != cmsSigDisplayClass)
+    else if ((cmsGetDeviceClass(lcmsProfileDisplay) != cmsSigDisplayClass) && (cmsGetDeviceClass(lcmsProfileDisplay) != cmsSigOutputClass))
     {
         cmsCloseProfile(lcmsProfileSimulation);
         cmsCloseProfile(lcmsProfileDisplay);
         vsapi->freeNode(d.node);
-        vsapi->setError(out, "iccc: Input display profile must have 'display' ('mntr') device class.");
+        vsapi->setError(out, "iccc: Input display profile must have 'display' ('mntr') or 'output' ('prtr') device class.");
+        return;
+    }
+    else if (cmsGetColorSpace(lcmsProfileDisplay) != cmsSigRgbData)
+    {
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input display profile must be for RGB colorspace.");
         return;
     }
 
@@ -301,11 +313,17 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         vsapi->setError(out, "iccc: Input display profile seems to be invalid.");
         return;
     }
-    else if (cmsGetDeviceClass(lcmsProfileDisplay) != cmsSigDisplayClass)
+    else if ((cmsGetDeviceClass(lcmsProfileDisplay) != cmsSigDisplayClass) && (cmsGetDeviceClass(lcmsProfileDisplay) != cmsSigOutputClass))
     {
         cmsCloseProfile(lcmsProfileDisplay);
         vsapi->freeNode(d.node);
-        vsapi->setError(out, "iccc: Input display profile must have 'display' ('mntr') device class.");
+        vsapi->setError(out, "iccc: Input display profile must have 'display' ('mntr') or 'output' ('prtr') device class.");
+        return;
+    }
+    else if (cmsGetColorSpace(lcmsProfileDisplay) != cmsSigRgbData)
+    {
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Input display profile must be for RGB colorspace.");
         return;
     }
 
