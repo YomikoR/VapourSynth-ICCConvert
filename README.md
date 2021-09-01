@@ -31,12 +31,12 @@ Intended for color profile conversion and soft proofing.
   Soft proofing requires both profiles are of display (`mntr`) device class. When such condition is not met, `soft_proofing` is automatically disabled, without reporting an error.
 
  - `simulation_intent` and `display_intent` are corresponding to the ICC rendering intents for simulation and for display, respectively, see [this link](https://helpx.adobe.com/photoshop-elements/kb/color-management-settings-best-print.html#main-pars_header_1). Possible options are
-   - "perceptual" for Perceptual (default for display)
+   - "perceptual" for Perceptual
    - "saturation" for Saturation
-   - "relative"   for Relative Colorimetric (default for simulation)
+   - "relative"   for Relative Colorimetric
    - "absolute"   for Absolute Colorimetric
 
-    If not in soft proofing mode, only `display_intent` will be taken.
+    If not in soft proofing mode, only `simulation_intent` will be taken.
 
     Not all rendering intents are supported by all display profiles. If the profile is not providing sufficient information for selected intent, Little CMS has the following fallback order:
 

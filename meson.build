@@ -2,7 +2,7 @@ project('ICCConvert', ['c', 'cpp'],
     license: 'LGPL2.1+',
     default_options: ['buildtype=release', 'b_ndebug=if-release', 'c_std=c11', 'cpp_std=c++17', 'optimization=2'],
     meson_version: '>=0.51.0',
-    version: '3.0'
+    version: '3.1'
 )
 
 sources = [
