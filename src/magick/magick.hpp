@@ -9,23 +9,6 @@
 # error ImageMagick is not built with Little CMS support.
 #endif
 
-inline int magick_2_lcms_intent(MagickCore::RenderingIntent intent)
-{
-    switch (intent)
-    {
-    case MagickCore::RelativeIntent:
-        return INTENT_RELATIVE_COLORIMETRIC;
-    case MagickCore::SaturationIntent:
-        return INTENT_SATURATION;
-    case MagickCore::PerceptualIntent:
-        return INTENT_PERCEPTUAL;
-    case MagickCore::AbsoluteIntent:
-        return INTENT_ABSOLUTE_COLORIMETRIC;
-    default:
-        return -1;
-    }
-}
-
 #endif // HAVE_MAGICK
 
 // for Windows we will build a standalone DLL linking ImageMagick
@@ -38,7 +21,6 @@ inline int magick_2_lcms_intent(MagickCore::RenderingIntent intent)
 struct magick_icc_profile
 {
     cmsHPROFILE icc = nullptr;
-    int intent = -1;
     std::string error_info;
 };
 

@@ -63,7 +63,6 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         if (fallback_srgb)
         {
             mprofile.icc = cmsCreate_sRGBProfile();
-            mprofile.intent = INTENT_PERCEPTUAL;
         }
         else
         {
@@ -89,7 +88,7 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     if (write_icc && !cmsSaveProfileToFile(mprofile.icc, output))
     {
-        if (has_embedded) magick_close_icc(mprofile.icc);
+        has_embedded ? magick_close_icc(mprofile.icc) : cmsCloseProfile(mprofile.icc);
 #if defined(_WIN32)
         FreeModule(mmodule);
 #endif
@@ -97,10 +96,9 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         return;
     }
 
-    // Set output
-    vsapi->propSetData(out, "path", output, std::strlen(output), paReplace);
-    const char *intent_name = print_intent(mprofile.intent);
-    vsapi->propSetData(out, "intent", intent_name, std::strlen(intent_name), paReplace);
+    // Rendering intent from header
+    int intent = cmsGetHeaderRenderingIntent(mprofile.icc);
+    const char *intent_name = print_intent(intent);
 
 #if defined(_WIN32)
     // If the profile comes from DLL, we must close in DLL
@@ -109,6 +107,9 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 #else
     cmsCloseProfile(mprofile.icc);
 #endif
+
+    vsapi->propSetData(out, "path", output, std::strlen(output), paReplace);
+    vsapi->propSetData(out, "intent", intent_name, std::strlen(intent_name), paReplace);
 }
 
 #else

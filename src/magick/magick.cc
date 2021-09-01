@@ -13,7 +13,6 @@ EXPORT_WHEN_W32(magick_icc_profile) magick_load_icc(const char *input)
         if (profile_s) // has embedded
         {
             mprofile.icc = cmsOpenProfileFromMem(profile_s->datum, profile_s->length);
-            mprofile.intent = magick_2_lcms_intent(image.renderingIntent());
         }
         Magick::TerminateMagick();
     }
