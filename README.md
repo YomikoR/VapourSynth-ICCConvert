@@ -7,9 +7,9 @@ Little CMS based ICC profile simulation for VapourSynth.
 ## Usage
 
 ```python
-iccc.Convert(clip, simulation_icc, display_icc, soft_proofing=True, simulation_intent=<from profile>, display_intent=<from profile>, gamut_warning=False, black_point_compensation=False, clut_size=49)
+iccc.Convert(clip, simulation_icc, display_icc=<see_below>, intent=<from_simulation_icc>, gamut_warning=False, black_point_compensation=False, clut_size=49)
 ```
-Intended for color profile conversion and soft proofing.
+Color profile conversion.
 
 - The format of input `clip` must be either `RGB24` or `RGB48`. The output has the same format.
 
@@ -26,23 +26,17 @@ Intended for color profile conversion and soft proofing.
 
   It's strongly recommended to manually specify the ICC profile for production purpose.
 
-- `soft_proofing` is the flag for soft proofing. When enabled, it takes an additional backward step for the proofing. Otherwise simple conversion is applied. [Here](https://sourceforge.net/p/lcms/mailman/message/36783703/) is a brief introduction about how Little CMS handles it.
-
-  Soft proofing requires both profiles are of display (`mntr`) device class. When such condition is not met, `soft_proofing` is automatically disabled, without reporting an error.
-
- - `simulation_intent` and `display_intent` are corresponding to the ICC rendering intents for simulation and for display, respectively, see [this link](https://helpx.adobe.com/photoshop-elements/kb/color-management-settings-best-print.html#main-pars_header_1). Possible options are
+ - `intent` refers to the ICC rendering intent for conversion, see [this link](https://helpx.adobe.com/photoshop-elements/kb/color-management-settings-best-print.html#main-pars_header_1). Possible options are
    - "perceptual" for Perceptual
    - "saturation" for Saturation
    - "relative"   for Relative Colorimetric
    - "absolute"   for Absolute Colorimetric
 
-    Default values are taken from the corresponding profile headers.
-
-    If not in soft proofing mode, only `simulation_intent` will be taken.
+    The default value is taken from the input profile header.
 
     Not all rendering intents are supported by all display profiles. If the profile is not providing sufficient information for selected intent, Little CMS has the following fallback rules:
 
-    - Perceptual: the default intent of the profile.
+    - Perceptual: the default intent of the (output) profile.
     - Relative Colorimetric: perceptual.
     - Saturation: perceptual.
     - Absolute Colorimetric: relative colorimetric intent, with undoing of chromatic adaptation.
