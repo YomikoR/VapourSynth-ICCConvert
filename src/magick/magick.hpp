@@ -24,13 +24,13 @@ struct magick_icc_profile
     std::string error_info;
 };
 
-typedef magick_icc_profile (*f_magick_load_icc)(const char *input);
+typedef magick_icc_profile (*f_magick_load_image_icc)(const char *input);
 typedef cmsBool (*f_magick_close_icc)(cmsHPROFILE profile);
 typedef cmsBool (*f_magick_write_icc)(cmsHPROFILE profile, const char* output);
 typedef cmsHPROFILE(*f_magick_create_srgb_icc)(void);
 
 constexpr const char* magick_function_list[] = {
-    "magick_load_icc",
+    "magick_load_image_icc",
     "magick_close_icc",
     "magick_write_icc",
     "magick_create_srgb_icc"

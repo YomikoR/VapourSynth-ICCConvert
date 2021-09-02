@@ -2,7 +2,7 @@
 #include "magick.hpp"
 #include <iostream>
 
-EXPORT_WHEN_W32(magick_icc_profile) magick_load_icc(const char *input)
+EXPORT_WHEN_W32(magick_icc_profile) magick_load_image_icc(const char *input)
 {
     magick_icc_profile mprofile;
     try

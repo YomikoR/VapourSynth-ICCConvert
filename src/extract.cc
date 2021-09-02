@@ -7,7 +7,7 @@
 #if defined(_WIN32)
 #include <windows.h>
 #else
-extern magick_icc_profile magick_load_icc(const char *input);
+extern magick_icc_profile magick_load_image_icc(const char *input);
 extern cmsBool magick_close_icc(cmsHPROFILE profile);
 extern cmsBool magick_write_icc(cmsHPROFILE profile, const char *output);
 extern cmsHPROFILE magick_create_srgb_icc();
@@ -16,7 +16,7 @@ extern cmsHPROFILE magick_create_srgb_icc();
 void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
 {
 #if defined(_WIN32)
-    f_magick_load_icc magick_load_icc;
+    f_magick_load_image_icc magick_load_image_icc;
     f_magick_close_icc magick_close_icc;
     f_magick_write_icc magick_write_icc;
     f_magick_create_srgb_icc magick_create_srgb_icc;
@@ -30,11 +30,12 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 #define RESOLVE_FUNCTION(fname) fname = (f_##fname)GetProcAddress(mmodule, #fname); \
     if (!(fname)) \
     { \
+        FreeLibrary(mmodule); \
         vsapi->setError(out, "iccc: Failed to resolve function "#fname" from the associated libiccc_magick.dll."); \
         return; \
     } \
 
-    RESOLVE_FUNCTION(magick_load_icc)
+    RESOLVE_FUNCTION(magick_load_image_icc)
     RESOLVE_FUNCTION(magick_close_icc)
     RESOLVE_FUNCTION(magick_write_icc)
     RESOLVE_FUNCTION(magick_create_srgb_icc)
@@ -43,18 +44,24 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     std::string input = vsapi->propGetData(in, "filename", 0, &err);
     if (err || !std::filesystem::exists(input))
     {
+#if defined(_WIN32)
+        FreeLibrary(mmodule);
+#endif
         vsapi->setError(out, "iccc: Input image path seems not valid.");
         return;
     }
 
-    // Get icc and intent from ImageMagick
-    magick_icc_profile mprofile = magick_load_icc(input.c_str());
+    // Get icc from ImageMagick
+    magick_icc_profile mprofile = magick_load_image_icc(input.c_str());
 
-    // Exception by ImageMagick (e.g. file not found)
+    // Exception by ImageMagick
     if (!mprofile.error_info.empty())
     {
         vsapi->setError(out, (std::string("iccc: ImageMagick reports the following error:\n") + mprofile.error_info).c_str());
         if (!mprofile.icc) magick_close_icc(mprofile.icc);
+#if defined(_WIN32)
+        FreeLibrary(mmodule);
+#endif
         return;
     }
 
@@ -69,6 +76,9 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         }
         else
         {
+#if defined(_WIN32)
+            FreeLibrary(mmodule);
+#endif
             vsapi->setError(out, "iccc: Failed to extract color profile.");
             return;
         }
@@ -89,6 +99,9 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     if (write_icc && !magick_write_icc(mprofile.icc, output))
     {
         magick_close_icc(mprofile.icc);
+#if defined(_WIN32)
+        FreeLibrary(mmodule);
+#endif
         vsapi->setError(out, "iccc: Failed to write profile to destination.");
         return;
     }
@@ -97,6 +110,9 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     int intent = cmsGetHeaderRenderingIntent(mprofile.icc);
     const char *intent_name = print_intent(intent);
     magick_close_icc(mprofile.icc);
+#if defined(_WIN32)
+    FreeLibrary(mmodule);
+#endif
     vsapi->propSetData(out, "path", output, std::strlen(output), paReplace);
     vsapi->propSetData(out, "intent", intent_name, std::strlen(intent_name), paReplace);
 }
