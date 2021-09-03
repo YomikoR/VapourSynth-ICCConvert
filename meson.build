@@ -9,6 +9,7 @@ sources = [
     'src/iccc.cc',
     'src/1886.cc',
     'src/plugin.cc',
+    'src/extract.cc',
 ]
 
 deps = []
@@ -55,7 +56,6 @@ if host_machine.system() == 'linux'
     dep_magick = dependency('imagemagick', required: false, version: '>= 7')
     if dep_magick.found()
         auto_profile_args += '-DHAVE_MAGICK'
-        sources += 'src/extract.cc'
         sources += 'src/magick/magick.cc'
     endif
 elif host_machine.system() == 'windows'

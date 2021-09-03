@@ -1,17 +1,13 @@
 #include "common.hpp"
-#include <string>
-#include <cstring>
+#include "magick/magick.hpp"
 #include <vector>
 #include <iterator>
 
 extern void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 extern void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
-#if defined(HAVE_MAGICK)
-#include "magick/magick.hpp"
 extern void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
-#endif
 
-#if defined (_WIN32) && defined(HAVE_MAGICK)
+#if defined (_WIN32)
 #include "windows.h"
 
 static char dummy;
@@ -96,7 +92,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
         "clut_size:int:opt",
         iccpCreate, nullptr, plugin);
 
-#if defined(HAVE_MAGICK)
 #if defined(_WIN32)
     static std::string dll_path_s;
     std::vector<const char*> func_names(std::begin(magick_function_list), std::end(magick_function_list));
@@ -111,6 +106,5 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
     registerFunc("Extract",
         "filename:data;output:data:opt;overwrite:int:opt;fallback_srgb:int:opt;",
         immxCreate, nullptr, plugin);
-#endif
 #endif
 }

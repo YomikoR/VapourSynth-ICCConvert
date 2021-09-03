@@ -5,6 +5,9 @@
 #include "vapoursynth/VapourSynth.h"
 #include "vapoursynth/VSHelper.h"
 
+#include <string>
+#include <cstring>
+
 #define ICCC_PLUGIN_ID "yomiko.collection.iccconvert"
 
 #if defined (_WIN32)

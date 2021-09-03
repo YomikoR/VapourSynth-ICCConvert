@@ -22,6 +22,7 @@
     <ClCompile Include="..\..\src\magick\magick.cc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src\common.hpp" />
     <ClInclude Include="..\..\src\magick\magick.hpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -86,7 +87,6 @@
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LinkIncremental>false</LinkIncremental>
     <IncludePath>..\..\deps\ImageMagick\Magick++\lib;..\..\deps\ImageMagick;..\..\deps\lcms2-2.12\include;$(IncludePath)</IncludePath>
     <TargetName>libiccc_magick</TargetName>
   </PropertyGroup>
@@ -132,10 +132,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>HAVE_MAGICK;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -144,12 +142,10 @@
       <StringPooling>false</StringPooling>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <OptimizeReferences>true</OptimizeReferences>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalOptions>"..\..\deps\ImageMagick_Lib_StaticMT\CORE_RL_*_.lib" %(AdditionalOptions)</AdditionalOptions>
       <AdditionalDependencies>..\..\deps\lcms2-2.12\Lib\MS\lcms2_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <ProjectReference />
   </ItemDefinitionGroup>
