@@ -99,7 +99,7 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         write_icc = vsapi->propGetInt(in, "overwrite", 0, &err);
         if (err) write_icc = false;
     }
-    if (write_icc && std::filesystem::equivalent(output, input))
+    if (write_icc && std::filesystem::exists(output) && std::filesystem::equivalent(output, input))
     {
         magick_close_icc(profile);
 #if defined(_WIN32)
