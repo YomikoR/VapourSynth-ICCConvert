@@ -74,12 +74,13 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
 
     registerFunc("Convert",
         "clip:clip;"
-        "simulation_icc:data;"
+        "simulation_icc:data:opt;"
         "display_icc:data:opt;"
         "intent:data:opt;"
         "gamut_warning:int:opt;"
         "black_point_compensation:int:opt;"
-        "clut_size:int:opt",
+        "clut_size:int:opt;"
+        "prefer_props:int:opt;",
         icccCreate, nullptr, plugin);
 
     registerFunc("Playback",
