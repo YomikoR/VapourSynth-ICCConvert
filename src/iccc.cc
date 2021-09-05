@@ -6,7 +6,7 @@
 // Use it for hashing
 struct inputICCData
 {
-    // The profile
+    // The profile, should be closed after transform creation
     cmsHPROFILE profile;
     // Plugin ID from header
     cmsUInt32Number ID32[4];
@@ -24,6 +24,7 @@ struct inputICCData
     // Hash on construction
     inputICCData(cmsHPROFILE profile, cmsUInt32Number intent) : profile{profile}, intent{intent}
     {
+        // MD5 hashing will only fail when OOM, ignored
         cmsMD5computeID(profile);
         cmsGetHeaderProfileID(profile, reinterpret_cast<cmsUInt8Number *>(ID32));
     }
@@ -47,7 +48,7 @@ struct icccData
     std::mutex transform_map_mutex;
     // Defaults
     cmsHPROFILE default_out = nullptr;
-    cmsHTRANSFORM default_transform = nullptr;
+    cmsHTRANSFORM default_transform = nullptr; // This one is a copy from the map, don't free it directly
     cmsUInt32Number default_intent;
     cmsUInt32Number transform_flag;
     // Format: now either RGB24 or RGB48
@@ -57,9 +58,17 @@ struct icccData
     bool prefer_props;
     icccData() {}
     icccData(const icccData &d) : node{d.node}, vi{d.vi}, default_out{d.default_out}, default_transform{d.default_transform}, default_intent{d.default_intent}, transform_flag{d.transform_flag}, datatype{d.datatype}, p2p_type{d.p2p_type}, prefer_props{d.prefer_props}, transform_map(d.transform_map) {}
+    void clear()
+    {
+        if (default_out) cmsCloseProfile(default_out);
+        for (auto pair : transform_map)
+        {
+            if (pair.second) cmsDeleteTransform(pair.second);
+        }
+    }
 };
 
-static cmsHTRANSFORM getTransform(inputICCData &ind, icccData *d)
+static cmsHTRANSFORM getTransform(const inputICCData &ind, icccData *d)
 {
     std::lock_guard<std::mutex> lock(d->transform_map_mutex);
     auto found = d->transform_map.find(ind);
@@ -109,44 +118,63 @@ static const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **
             if (!err && icc_len > 0)
             {
                 const char *icc_data = vsapi->propGetData(map, "_ICCProfile", 0, &err);
-                if (!err && icc_data)
+                // Create profile
+                cmsHPROFILE inp = cmsOpenProfileFromMem(icc_data, icc_len);
+                if (inp)
                 {
-                    // Create profile
-                    cmsHPROFILE inp = cmsOpenProfileFromMem(icc_data, icc_len);
-                    if (inp)
+                    // Sanity checks
+                    if ((cmsGetDeviceClass(inp) != cmsSigDisplayClass) && (cmsGetDeviceClass(inp) != cmsSigInputClass))
                     {
-                        // Sanity checks
-                        if ((cmsGetDeviceClass(inp) != cmsSigDisplayClass) && (cmsGetDeviceClass(inp) != cmsSigInputClass))
-                        {
-                            vsapi->setFilterError("iccc: The device class of the embedded ICC profile is not supported.", frameCtx);
-                            return nullptr;
-                        }
-                        if (cmsGetColorSpace(inp) != cmsSigRgbData)
-                        {
-                            vsapi->setFilterError("iccc: The colorspace of the embedded ICC profile is not supported.", frameCtx);
-                            return nullptr;
-                        }
-                        cmsUInt32Number intent = cmsGetHeaderRenderingIntent(inp);
-                        inputICCData ind(inp, intent);
-                        transform = getTransform(ind, d);
-                        if (!transform)
-                        {
-                            vsapi->setFilterError("iccc: Unable to create transform from embedded ICC profile.", frameCtx);
-                            return nullptr;
-                        }
-                        cmsCloseProfile(inp);
+                        vsapi->freeFrame(frame);
+                        vsapi->freeFrame(dst_frame);
+                        vsapi->setFilterError("iccc: The device class of the embedded ICC profile is not supported.", frameCtx);
+                        return nullptr;
                     }
+                    if (cmsGetColorSpace(inp) != cmsSigRgbData)
+                    {
+                        vsapi->freeFrame(frame);
+                        vsapi->freeFrame(dst_frame);
+                        vsapi->setFilterError("iccc: The colorspace of the embedded ICC profile is not supported.", frameCtx);
+                        return nullptr;
+                    }
+                    cmsUInt32Number intent = cmsGetHeaderRenderingIntent(inp);
+                    inputICCData ind(inp, intent);
+                    transform = getTransform(ind, d);
+                    cmsCloseProfile(inp);
+                    if (!transform)
+                    {
+                        vsapi->freeFrame(frame);
+                        vsapi->freeFrame(dst_frame);
+                        vsapi->setFilterError("iccc: Failed to create transform from embedded ICC profile.", frameCtx);
+                        return nullptr;
+                    }
+                }
+                else
+                {
+                    vsapi->freeFrame(frame);
+                    vsapi->freeFrame(dst_frame);
+                    vsapi->setFilterError("iccc: Unable to read embedded ICC profile. Corrupted?", frameCtx);
+                    return nullptr;
                 }
             }
         }
 
         if (!transform)
         {
+            vsapi->freeFrame(frame);
+            vsapi->freeFrame(dst_frame);
             vsapi->setFilterError("iccc: Failed to construct transform. This may be caused by insufficient ICC profile info provided.", frameCtx);
             return nullptr;
         }
 
         void *packed = vs_aligned_malloc(stride * height * 3, 32);
+        if (!packed)
+        {
+            vsapi->freeFrame(frame);
+            vsapi->freeFrame(dst_frame);
+            vsapi->setFilterError("iccc: Out of memory when constructing transform.", frameCtx);
+            return nullptr;
+        }
 
         // pack
         p2p_buffer_param p2p_src = {};
@@ -190,12 +218,7 @@ static void VS_CC icccFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
 {
     icccData *d = reinterpret_cast<icccData *>(instanceData);
     vsapi->freeNode(d->node);
-    if (d->default_out) cmsCloseProfile(d->default_out);
-    for (auto &pair : d->transform_map)
-    {
-        cmsDeleteTransform(pair.second);
-    }
-    // Things outside the map are freed somewhere else.
+    d->clear();
     delete d;
 }
 
@@ -298,10 +321,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     const char* sim_intent = vsapi->propGetData(in, "intent", 0, &err);
     if (err || !sim_intent)
     {
-        if (!d.prefer_props)
-        {
-            d.default_intent = cmsGetHeaderRenderingIntent(input_profile);
-        }
+        if (input_profile) d.default_intent = cmsGetHeaderRenderingIntent(input_profile);
     }
     else if (strcmp(sim_intent, "perceptual") == 0) d.default_intent = INTENT_PERCEPTUAL;
     else if (strcmp(sim_intent, "relative") == 0) d.default_intent = INTENT_RELATIVE_COLORIMETRIC;
@@ -345,13 +365,12 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         d.default_transform = cmsCreateTransform(input_profile, d.datatype, d.default_out, d.datatype, d.default_intent, d.transform_flag);
         inputICCData ind(input_profile, d.default_intent);
         d.transform_map[ind] = d.default_transform;
+        cmsCloseProfile(input_profile);
     }
     else
     {
         d.default_transform = nullptr;
     }
-
-    input_profile && cmsCloseProfile(input_profile);
 
     icccData *data = new icccData(d);
     vsapi->createFilter(in, out, "Convert", icccInit, icccGetFrame, icccFree, fmParallel, 0, data, core);
@@ -500,7 +519,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     else if ((clut_size < -1) || (clut_size > 255))
     {
         cmsCloseProfile(d.default_out);
-        input_profile && cmsCloseProfile(input_profile);
+        cmsCloseProfile(input_profile);
         vsapi->freeNode(d.node);
         vsapi->setError(out, "iccc: Input clut size seems not valid.");
         return;
@@ -508,12 +527,20 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     d.transform_flag |= cmsFLAGS_GRIDPOINTS(clut_size);
 
     d.default_transform = cmsCreateTransform(input_profile, d.datatype, d.default_out, d.datatype, d.default_intent, d.transform_flag);
+    if (!d.default_transform)
+    {
+        cmsCloseProfile(d.default_out);
+        cmsCloseProfile(input_profile);
+        vsapi->freeNode(d.node);
+        vsapi->setError(out, "iccc: Failed to create transform for playback.");
+        return;
+    }
     // This is not necessary but we are going to free default_transform there
     inputICCData ind(input_profile, d.default_intent);
     d.transform_map[ind] = d.default_transform;
+    cmsCloseProfile(input_profile);
 
     d.prefer_props = false;
-    cmsCloseProfile(input_profile);
 
     icccData *data = new icccData(d);
 
