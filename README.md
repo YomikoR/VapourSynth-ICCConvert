@@ -7,13 +7,15 @@ Little CMS based ICC profile simulation for VapourSynth.
 ## Usage
 
 ```python
-iccc.Convert(clip, simulation_icc, display_icc=<see_below>, intent=<from_simulation_icc>, gamut_warning=False, black_point_compensation=False, clut_size=49)
+iccc.Convert(clip, simulation_icc, display_icc=<from_system>, intent=<from_simulation_icc>, gamut_warning=False, black_point_compensation=False, clut_size=49, prefer_props=True)
 ```
 Color profile conversion.
 
 - The format of input `clip` must be either `RGB24` or `RGB48`. The output has the same format.
 
 - `simulation_icc` is the path to the ICC profile to simulate (input profile for conversion).
+
+  When `prefer_props` is enabled, it is an *optional* fallback value for embedded ICC profiles read from frame properties.
 
 - `display_icc` is the path to the ICC profile for your monitor (output profile for conversion).
 
@@ -52,6 +54,10 @@ Color profile conversion.
     - 1 for Little CMS preset which is equivalent to 49 (default)
     - 0 for Little CMS preset which is equivalent to 33
     - -1 for Little CMS preset which is equivalent to 17
+
+ - `prefer_props` is the flag for reading embedded ICC profiles from the frame property `_ICCProfile`. Default on. The rendering intent from the header of the embedded profile will also override the above `intent`.
+
+    ICC profiles are internally hashed to reuse exising ICC transform instances, so duplication of embedded ICC profiles from the input clip won't cause a big performance loss.
 
 ```python
 iccc.Playback(clip, display_icc, playback_csp='709', gamma=None, intent='relative', black_point_compensation=True, clut_size=49)
