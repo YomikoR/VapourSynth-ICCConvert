@@ -112,7 +112,7 @@ static const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **
         cmsHTRANSFORM transform = d->default_transform;
         if (d->prefer_props)
         {
-            const VSMap *map = vsapi->getFramePropsRO(frame);
+            VSMap *map = vsapi->getFramePropsRW(dst_frame);
             int err;
             int icc_len = vsapi->propGetDataSize(map, "_ICCProfile", 0, &err);
             if (!err && icc_len > 0)
@@ -156,6 +156,7 @@ static const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **
                     vsapi->setFilterError("iccc: Unable to read embedded ICC profile. Corrupted?", frameCtx);
                     return nullptr;
                 }
+                vsapi->propDeleteKey(map, "_ICCProfile");
             }
         }
 
