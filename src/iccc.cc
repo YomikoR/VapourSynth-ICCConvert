@@ -114,10 +114,10 @@ static const VSFrameRef *VS_CC icccGetFrame(int n, int activationReason, void **
         {
             VSMap *map = vsapi->getFramePropsRW(dst_frame);
             int err;
-            int icc_len = vsapi->propGetDataSize(map, "_ICCProfile", 0, &err);
+            int icc_len = vsapi->propGetDataSize(map, "ICCProfile", 0, &err);
             if (!err && icc_len > 0)
             {
-                const char *icc_data = vsapi->propGetData(map, "_ICCProfile", 0, &err);
+                const char *icc_data = vsapi->propGetData(map, "ICCProfile", 0, &err);
                 // Create profile
                 cmsHPROFILE inp = cmsOpenProfileFromMem(icc_data, icc_len);
                 if (inp)
