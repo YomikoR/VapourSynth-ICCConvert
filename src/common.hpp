@@ -2,13 +2,15 @@
 #define _ICCC_COMMON
 
 #include <lcms2.h>
-#include "vapoursynth/VapourSynth.h"
-#include "vapoursynth/VSHelper.h"
+#include "vapoursynth/VapourSynth4.h"
+#include "vapoursynth/VSHelper4.h"
 
 #include <string>
 #include <cstring>
+#include <vector>
 
 #define ICCC_PLUGIN_ID "yomiko.collection.iccconvert"
+#define ICCC_PLUGIN_VERSION VS_MAKE_VERSION(3, 2)
 
 #if defined (_WIN32)
 # define DETECTION_IMPLEMENTED 1

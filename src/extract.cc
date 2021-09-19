@@ -21,14 +21,14 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     HMODULE mmodule = LoadLibraryA(magick_dll_path_p->c_str());
     if (!mmodule)
     {
-        vsapi->setError(out, "iccc: Failed to load the associated libiccc_magick.dll.");
+        vsapi->mapSetError(out, "iccc: Failed to load the associated libiccc_magick.dll.");
         return;
     }
 #define RESOLVE_FUNCTION(fname) fname = (f_##fname)GetProcAddress(mmodule, #fname); \
     if (!(fname)) \
     { \
         FreeLibrary(mmodule); \
-        vsapi->setError(out, "iccc: Failed to resolve function "#fname" from the associated libiccc_magick.dll."); \
+        vsapi->mapSetError(out, "iccc: Failed to resolve function "#fname" from the associated libiccc_magick.dll."); \
         return; \
     } \
 
@@ -38,13 +38,13 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     RESOLVE_FUNCTION(magick_create_srgb_icc)
 #endif
     int err = 0;
-    std::string input = vsapi->propGetData(in, "filename", 0, &err);
+    std::string input = vsapi->mapGetData(in, "filename", 0, &err);
     if (err || !std::filesystem::exists(input))
     {
 #if defined(_WIN32)
         FreeLibrary(mmodule);
 #endif
-        vsapi->setError(out, "iccc: Input image path seems not valid.");
+        vsapi->mapSetError(out, "iccc: Input image path seems not valid.");
         return;
     }
 
@@ -55,7 +55,7 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     // Exception by ImageMagick
     if (!error_info.empty())
     {
-        vsapi->setError(out, (std::string("iccc: ImageMagick reports the following error:\n") + error_info).c_str());
+        vsapi->mapSetError(out, (std::string("iccc: ImageMagick reports the following error:\n") + error_info).c_str());
         if (!profile) magick_close_icc(profile);
 #if defined(_WIN32)
         FreeLibrary(mmodule);
@@ -66,7 +66,7 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     // Fallback to sRGB?
     if (!profile)
     {
-        bool fallback_srgb = vsapi->propGetInt(in, "fallback_srgb", 0, &err);
+        bool fallback_srgb = vsapi->mapGetInt(in, "fallback_srgb", 0, &err);
         if (err) fallback_srgb = true;
         if (fallback_srgb)
         {
@@ -77,7 +77,7 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 #if defined(_WIN32)
             FreeLibrary(mmodule);
 #endif
-            vsapi->setError(out, "iccc: Failed to extract color profile.");
+            vsapi->mapSetError(out, "iccc: Failed to extract color profile.");
             return;
         }
     }
@@ -85,7 +85,7 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     // Write icc to file
     bool write_icc = true;
     std::string output;
-    const char *output_c = vsapi->propGetData(in, "output", 0, &err);
+    const char *output_c = vsapi->mapGetData(in, "output", 0, &err);
     if (err || !output_c)
     {
         output.assign(input + ".icc");
@@ -96,7 +96,7 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     if (std::filesystem::exists(output))
     {
-        write_icc = vsapi->propGetInt(in, "overwrite", 0, &err);
+        write_icc = vsapi->mapGetInt(in, "overwrite", 0, &err);
         if (err) write_icc = false;
     }
     if (write_icc && std::filesystem::exists(output) && std::filesystem::equivalent(output, input))
@@ -105,7 +105,7 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 #if defined(_WIN32)
         FreeLibrary(mmodule);
 #endif
-        vsapi->setError(out, "iccc: Output path is identical to input path. This is not allowed.");
+        vsapi->mapSetError(out, "iccc: Output path is identical to input path. This is not allowed.");
         return;
     }
     if (write_icc && !magick_write_icc(profile, output))
@@ -114,7 +114,7 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 #if defined(_WIN32)
         FreeLibrary(mmodule);
 #endif
-        vsapi->setError(out, "iccc: Failed to write profile to destination.");
+        vsapi->mapSetError(out, "iccc: Failed to write profile to destination.");
         return;
     }
 
@@ -125,6 +125,6 @@ void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 #if defined(_WIN32)
     FreeLibrary(mmodule);
 #endif
-    vsapi->propSetData(out, "path", output.c_str(), output.size(), paReplace);
-    vsapi->propSetData(out, "intent", intent_name, std::strlen(intent_name), paReplace);
+    vsapi->mapSetData(out, "path", output.c_str(), output.size(), dtUtf8, maReplace);
+    vsapi->mapSetData(out, "intent", intent_name, std::strlen(intent_name), dtUtf8, maReplace);
 }

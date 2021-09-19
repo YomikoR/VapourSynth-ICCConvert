@@ -1,6 +1,5 @@
 #include "common.hpp"
 #include "magick/magick.hpp"
-#include <vector>
 #include <iterator>
 
 extern void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
@@ -43,7 +42,7 @@ static void check_dll_func(std::vector<const char *> func_names, std::string &re
         ret.clear();
         return;
     }
-    // resolve functions by name
+    // Resolve functions by name
     bool all_resolved = true;
     for (const char* func_name : func_names)
     {
@@ -68,12 +67,12 @@ static void check_dll_func(std::vector<const char *> func_names, std::string &re
 }
 #endif
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin* plugin, const VSPLUGINAPI* vspapi)
 {
-    configFunc(ICCC_PLUGIN_ID, "iccc", "ICC Conversion", VAPOURSYNTH_API_VERSION, 1, plugin);
+    vspapi->configPlugin(ICCC_PLUGIN_ID, "iccc", "ICC Conversion", ICCC_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
 
-    registerFunc("Convert",
-        "clip:clip;"
+    vspapi->registerFunction("Convert",
+        "clip:vnode;"
         "simulation_icc:data:opt;"
         "display_icc:data:opt;"
         "intent:data:opt;"
@@ -81,17 +80,21 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
         "black_point_compensation:int:opt;"
         "clut_size:int:opt;"
         "prefer_props:int:opt;",
-        icccCreate, nullptr, plugin);
+        "clip:vnode;",
+        icccCreate, nullptr, plugin
+    );
 
-    registerFunc("Playback",
-        "clip:clip;"
+    vspapi->registerFunction("Playback",
+        "clip:vnode;"
         "display_icc:data:opt;"
         "playback_csp:data:opt;"
         "gamma:float:opt;"
         "intent:data:opt;"
         "black_point_compensation:int:opt;"
-        "clut_size:int:opt",
-        iccpCreate, nullptr, plugin);
+        "clut_size:int:opt;",
+        "clip:vnode;",
+        iccpCreate, nullptr, plugin
+    );
 
 #if defined(_WIN32)
     static std::string dll_path_s;
@@ -99,13 +102,17 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
     check_dll_func(func_names, dll_path_s);
     if (!dll_path_s.empty())
     {
-        registerFunc("Extract",
-        "filename:data;output:data:opt;overwrite:int:opt;fallback_srgb:int:opt;",
-        immxCreate, static_cast<void *>(&dll_path_s), plugin);    
+        vspapi->registerFunction("Extract",
+            "filename:data;output:data:opt;overwrite:int:opt;fallback_srgb:int:opt;",
+            "path:data;intent:data;",
+            immxCreate, static_cast<void *>(&dll_path_s), plugin
+        );
     }
 #else
-    registerFunc("Extract",
+    vspapi->registerFunction("Extract",
         "filename:data;output:data:opt;overwrite:int:opt;fallback_srgb:int:opt;",
-        immxCreate, nullptr, plugin);
+        "path:data;intent:data;",
+        immxCreate, nullptr, plugin
+    );
 #endif
 }
