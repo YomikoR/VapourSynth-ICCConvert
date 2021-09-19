@@ -55,7 +55,7 @@ Color profile conversion.
     - 0 for Little CMS preset which is equivalent to 33
     - -1 for Little CMS preset which is equivalent to 17
 
- - `prefer_props` is the flag for reading embedded ICC profiles from the frame property `_ICCProfile`. Default on. The rendering intent from the header of the embedded profile will also override the above `intent`.
+ - `prefer_props` is the flag for reading embedded ICC profiles from the frame property `ICCProfile`. Default on. The rendering intent from the header of the embedded profile will also override the above `intent`.
 
     ICC profiles are internally hashed to reuse exising ICC transform instances, so duplication of embedded ICC profiles from the input clip won't cause a big performance loss.
 
