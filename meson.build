@@ -64,7 +64,6 @@ elif host_machine.system() == 'windows'
     link_args += '-static'
     dep_magick = dependency('Magick++', required: false, version: '>= 7', static: true)
     if dep_magick.found()
-    deps += dep_magick
         auto_profile_args += '-DHAVE_MAGICK'
         shared_module('iccc_magick', 'src/magick/magick.cc',
             dependencies: dep_magick,
