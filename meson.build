@@ -53,7 +53,7 @@ if host_machine.system() == 'linux'
         endif
         sources += ['src/detection/x11.c']
     endif
-    dep_magick = dependency('imagemagick', required: false, version: '>= 7')
+    dep_magick = dependency('Magick++', required: false, version: '>= 7')
     if dep_magick.found()
         auto_profile_args += '-DHAVE_MAGICK'
         sources += 'src/magick/magick.cc'
@@ -62,6 +62,17 @@ elif host_machine.system() == 'windows'
     deps += dependency('lcms2', static: true)
     sources += ['src/detection/win32.c']
     link_args += '-static'
+    dep_magick = dependency('Magick++', required: false, version: '>= 7', static: true)
+    if dep_magick.found()
+        auto_profile_args += '-DHAVE_MAGICK'
+        shared_module('iccc_magick', 'src/magick/magick.cc',
+            dependencies: dep_magick,
+            cpp_args: auto_profile_args,
+            link_args: ['-static', '-lws2_32', '-ldeflate', '-lzstd'],
+            name_prefix: 'lib',
+            gnu_symbol_visibility : 'hidden'
+        )
+    endif
 endif
 
 shared_module('iccc', sources,
