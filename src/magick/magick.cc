@@ -1,5 +1,9 @@
 #if defined(HAVE_MAGICK)
 #include "magick.hpp"
+#include <Magick++.h>
+#ifndef MAGICKCORE_LCMS_DELEGATE
+# error ImageMagick is not built with Little CMS support.
+#endif
 
 EXPORT_WHEN_W32(cmsHPROFILE) magick_load_image_icc(const std::string &input, std::string &error_info)
 {
