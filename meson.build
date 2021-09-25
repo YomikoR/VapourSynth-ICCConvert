@@ -2,7 +2,7 @@ project('ICCConvert', ['c', 'cpp'],
     license: 'LGPL2.1+',
     default_options: ['buildtype=release', 'b_ndebug=if-release', 'c_std=c11', 'cpp_std=c++17', 'optimization=2'],
     meson_version: '>=0.51.0',
-    version: '3.1'
+    version: '3.2'
 )
 
 sources = [
@@ -55,6 +55,7 @@ if host_machine.system() == 'linux'
     endif
     dep_magick = dependency('Magick++', required: false, version: '>= 7')
     if dep_magick.found()
+        deps += dep_magick
         auto_profile_args += '-DHAVE_MAGICK'
         sources += 'src/magick/magick.cc'
     endif
