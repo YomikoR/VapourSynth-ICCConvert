@@ -1,6 +1,7 @@
 #ifndef _ICCC_COMMON
 #define _ICCC_COMMON
 
+#define CMS_NO_REGISTER_KEYWORD 1
 #include <lcms2.h>
 #include "vapoursynth/VapourSynth4.h"
 #include "vapoursynth/VSHelper4.h"
