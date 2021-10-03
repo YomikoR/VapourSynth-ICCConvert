@@ -4,7 +4,9 @@
 
 extern void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 extern void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
+#if defined (_WIN32) || defined (HAVE_MAGICK)
 extern void VS_CC immxCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
+#endif
 
 #if defined (_WIN32)
 #include "windows.h"
@@ -108,7 +110,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin* plugin, const VSPLUGINAPI
             immxCreate, static_cast<void *>(&dll_path_s), plugin
         );
     }
-#else
+#elif defined (HAVE_MAGICK)
     vspapi->registerFunction("Extract",
         "filename:data;output:data:opt;overwrite:int:opt;fallback_srgb:int:opt;",
         "path:data;intent:data;",

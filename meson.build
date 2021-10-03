@@ -9,7 +9,6 @@ sources = [
     'src/iccc.cc',
     'src/1886.cc',
     'src/plugin.cc',
-    'src/extract.cc',
 ]
 
 deps = []
@@ -57,11 +56,20 @@ if host_machine.system() == 'linux'
     if dep_magick.found()
         deps += dep_magick
         auto_profile_args += '-DHAVE_MAGICK'
-        sources += 'src/magick/magick.cc'
+        sources += ['src/magick/magick.cc', 'src/extract.cc']
+    endif
+elif host_machine.system() == 'darwin'
+    deps += dependency('lcms2')
+    dep_magick = dependency('Magick++', required: false, version: '>= 7')
+    if dep_magick.found()
+        deps += dep_magick
+        auto_profile_args += '-DHAVE_MAGICK'
+        sources += ['src/magick/magick.cc', 'src/extract.cc']
     endif
 elif host_machine.system() == 'windows'
     deps += dependency('lcms2', static: true)
     sources += ['src/detection/win32.c']
+    sources += ['src/extract.cc']
     link_args += '-static'
     dep_magick = dependency('Magick++', required: false, version: '>= 7', static: true)
     if dep_magick.found()
