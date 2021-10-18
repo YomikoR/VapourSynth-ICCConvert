@@ -66,7 +66,8 @@ Video playback with BT.1886 configuration, or overridden by a given float value 
 
 Currently supported `playback_csp` options are the following:
 - `'709'` for HD
-- `'2020'` for UHD
+- `'2020'` for UHD (SDR)
+- `'170m'` for SD (NTSC)
 
 For viewing images, instead, you may also set `playback_csp` as `'srgb'`.
 
