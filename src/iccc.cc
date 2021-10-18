@@ -459,14 +459,6 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     {
         input_profile = get_profile_playback(csp_709, gamma, d->default_out);
     }
-    else if ((strcmp(src_profile, "601-525") == 0) || (strcmp(src_profile, "170m") == 0) || (strcmp(src_profile, "240m") == 0))
-    {
-        input_profile = get_profile_playback(csp_601_525, gamma, d->default_out);
-    }
-    else if ((strcmp(src_profile, "601-625") == 0) || (strcmp(src_profile, "470bg") == 0))
-    {
-        input_profile = get_profile_playback(csp_601_625, gamma, d->default_out);
-    }
     else if ((strcmp(src_profile, "2020") == 0) || (strcmp(src_profile, "2020-10") == 0) || (strcmp(src_profile, "2020-12") == 0))
     {
         input_profile = get_profile_playback(csp_2020, gamma, d->default_out);
