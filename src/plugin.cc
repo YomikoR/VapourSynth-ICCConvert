@@ -75,9 +75,13 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin* plugin, const VSPLUGINAPI
 
     vspapi->registerFunction("Convert",
         "clip:vnode;"
-        "simulation_icc:data:opt;"
+        "input_icc:data:opt;"
         "display_icc:data:opt;"
         "intent:data:opt;"
+        "proofing_icc:data:opt;"
+        "proofing_intent:data:opt;"
+        "gamut_warning:int:opt;"
+        "gamut_warning_color:int[]:opt;"
         "black_point_compensation:int:opt;"
         "clut_size:int:opt;"
         "prefer_props:int:opt;",

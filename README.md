@@ -7,17 +7,17 @@ Little CMS based ICC profile simulation for VapourSynth.
 ## Usage
 
 ```python
-iccc.Convert(clip, simulation_icc, display_icc=<from_system>, intent=<from_simulation_icc>, black_point_compensation=False, clut_size=49, prefer_props=True)
+iccc.Convert(clip, input_icc=<from_frame_properties>, display_icc=<from_system>, intent=<from_input_icc>, proofing_icc=None, proofing_intent=<from_proofing_icc>, gamut_warning=False, gamut_warning_color=[65535, 0, 65535], black_point_compensation=False, clut_size=49, prefer_props=True)
 ```
-Color profile conversion.
+Color profile conversion and soft proofing.
 
 - The format of input `clip` must be either `RGB24` or `RGB48`. The output has the same format.
 
-- `simulation_icc` is the path to the ICC profile to simulate (input profile for conversion).
+- `input_icc` is the path to the ICC profile of the clip (input profile for conversion).
 
   When `prefer_props` is enabled, it is an *optional* fallback value for embedded ICC profiles read from frame properties.
 
-- `display_icc` is the path to the ICC profile for your monitor (output profile for conversion).
+- `display_icc` is the path to the ICC profile for the output, e.g. your monitor (output profile for conversion).
 
   In Windows and in Linux X11, this parameter is *optional*. The default profile is detected for the current window (e.g. the editor window of VapourSynth Editor, or the console window used to launch vapoursynth-preview, but *not* their preview windows). Procedures of detection are a little different:
   - Windows: *foreground* window -> monitor -> ICC profile
@@ -28,7 +28,7 @@ Color profile conversion.
 
   It's strongly recommended to manually specify the ICC profile for production purpose.
 
- - `intent` refers to the ICC rendering intent for conversion, see [this link](https://helpx.adobe.com/photoshop-elements/kb/color-management-settings-best-print.html#main-pars_header_1). Possible options are
+ - `intent` refers to the ICC rendering intent for conversion from the input clip, see [this link](https://helpx.adobe.com/photoshop-elements/kb/color-management-settings-best-print.html#main-pars_header_1). Possible options are
    - "perceptual" for Perceptual
    - "saturation" for Saturation
    - "relative"   for Relative Colorimetric
@@ -43,12 +43,20 @@ Color profile conversion.
     - Saturation: perceptual.
     - Absolute Colorimetric: relative colorimetric intent, with undoing of chromatic adaptation.
 
+ - `proofing_icc` is the path to the *optional* ICC profile for soft proofing, e.g. another monitor on which we are interested in the rendering. When a valid ICC profile is provided, the transform is taken in the soft proofing mode. When leaving it as the default `None`, a straightforward ICC transform is taken instead.
+ 
+   The following options only have effect in soft proofing mode:
+
+   - `proofing_intent`, similar to `intent` above.
+   - `gamut_warning`, the flag for a gamut check in the proofing.
+   - `gamut_warning_color`, when gamut check is enabled, the specified color filling the region where a gamut overflow happens in the proofing simulation. The color must be given as a triple of 16-bit R, G and B values. Default magenta.
+
  - `black_point_compensation` is the flag for what it tells. Default off.
 
  - `clut_size` specifies the internal LUT size used by Little CMS. The LUT size is applied for each plane (channel), so it does have an impact on the speed of plugin initialization.
- 
+
    Possible values are the following:
-    - 2~255 for the actual LUT size
+    - 2-255 for the actual LUT size
     - 1 for Little CMS preset which is equivalent to 49 (default)
     - 0 for Little CMS preset which is equivalent to 33
     - -1 for Little CMS preset which is equivalent to 17
@@ -60,7 +68,7 @@ Color profile conversion.
 ```python
 iccc.Playback(clip, display_icc, playback_csp='709', gamma=None, intent='relative', black_point_compensation=True, clut_size=49)
 ```
-Video playback with BT.1886 configuration, or overridden by a given float value of `gamma` (e.g. 2.4 for OLED displays). This should have the same behavior as the [mpv player](https://mpv.io/).
+Video playback with BT.1886 configuration, or overridden by a given float value of `gamma` (e.g. 2.4 for OLED monitors). This should have the same behavior as the [mpv player](https://mpv.io/).
 
 Currently supported `playback_csp` options are the following:
 - `'709'` for HD
