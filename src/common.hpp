@@ -11,7 +11,7 @@
 #include <vector>
 
 #define ICCC_PLUGIN_ID "yomiko.collection.iccconvert"
-#define ICCC_PLUGIN_VERSION VS_MAKE_VERSION(3, 2)
+#define ICCC_PLUGIN_VERSION VS_MAKE_VERSION(4, 0)
 
 #if defined (_WIN32)
 # define DETECTION_IMPLEMENTED 1
