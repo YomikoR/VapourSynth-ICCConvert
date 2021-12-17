@@ -7,7 +7,7 @@ Little CMS based ICC profile simulation for VapourSynth.
 ## Usage
 
 ```python
-iccc.Convert(clip, simulation_icc, display_icc=<from_system>, intent=<from_simulation_icc>, gamut_warning=False, black_point_compensation=False, clut_size=49, prefer_props=True)
+iccc.Convert(clip, simulation_icc, display_icc=<from_system>, intent=<from_simulation_icc>, black_point_compensation=False, clut_size=49, prefer_props=True)
 ```
 Color profile conversion.
 
@@ -42,8 +42,6 @@ Color profile conversion.
     - Relative Colorimetric: perceptual.
     - Saturation: perceptual.
     - Absolute Colorimetric: relative colorimetric intent, with undoing of chromatic adaptation.
-
- - `gamut_warning` is the flag for out-of-gamut warning. A certain color will fill the overflowing region. Default off.
 
  - `black_point_compensation` is the flag for what it tells. Default off.
 

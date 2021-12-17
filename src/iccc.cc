@@ -334,9 +334,6 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     d->transform_flag = cmsFLAGS_NONEGATIVES;
 
-    bool gamut_warning = !!vsapi->mapGetInt(in, "gamut_warning", 0, &err);
-    if (gamut_warning) d->transform_flag |= cmsFLAGS_GAMUTCHECK;
-
     bool black_point_compensation = !!vsapi->mapGetInt(in, "black_point_compensation", 0, &err);
     if (black_point_compensation) d->transform_flag |= cmsFLAGS_BLACKPOINTCOMPENSATION;
 
@@ -505,9 +502,6 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
 
     d->transform_flag = cmsFLAGS_NONEGATIVES;
-
-    bool gamut_warning = vsapi->mapGetInt(in, "gamut_warning", 0, &err);
-    if (err || gamut_warning) d->transform_flag |= cmsFLAGS_GAMUTCHECK;
 
     bool black_point_compensation = !!vsapi->mapGetInt(in, "black_point_compensation", 0, &err);
     if (black_point_compensation) d->transform_flag |= cmsFLAGS_BLACKPOINTCOMPENSATION;
