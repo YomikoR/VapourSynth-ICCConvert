@@ -360,20 +360,12 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
             vsapi->mapSetError(out, "iccc: Proofing profile seems invalid.");
             return;
         }
-        else if (cmsGetDeviceClass(d->proofing) != cmsSigDisplayClass)
+        else if (cmsGetDeviceClass(d->proofing) != cmsSigDisplayClass || cmsGetDeviceClass(d->proofing) != cmsSigOutputClass)
         {
             cmsCloseProfile(d->default_out);
             input_profile && cmsCloseProfile(input_profile);
             vsapi->freeNode(d->node);
-            vsapi->mapSetError(out, "iccc: Proofing profile must have 'display' ('mntr') device class.");
-            return;
-        }
-        else if (cmsGetColorSpace(d->proofing) != cmsSigRgbData)
-        {
-            cmsCloseProfile(d->default_out);
-            input_profile && cmsCloseProfile(input_profile);
-            vsapi->freeNode(d->node);
-            vsapi->mapSetError(out, "iccc: Proofing profile must be for RGB colorspace.");
+            vsapi->mapSetError(out, "iccc: Proofing profile must have 'display' ('mntr') or 'output' ('prtr') device class.");
             return;
         }
         d->transform_flag |= cmsFLAGS_SOFTPROOFING;
