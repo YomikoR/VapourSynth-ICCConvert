@@ -62,12 +62,6 @@
     <ClInclude Include="..\..\src\magick\magick.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\vapoursynth\VapourSynth.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\vapoursynth\VSHelper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\common.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
