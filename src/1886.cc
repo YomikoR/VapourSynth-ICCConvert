@@ -24,7 +24,7 @@ cmsHPROFILE get_profile_playback(const cspData &csp, const double gamma, const c
         double src_black[3];
 
         cmsCIEXYZ lcmsBP_XYZ; // black pt
-        if (!cmsDetectBlackPoint(&lcmsBP_XYZ, lcmsProfileDisplay, INTENT_RELATIVE_COLORIMETRIC, 0)) return nullptr;
+        if (!cmsDetectDestinationBlackPoint(&lcmsBP_XYZ, lcmsProfileDisplay, INTENT_RELATIVE_COLORIMETRIC, 0)) return nullptr;
 
         // XYZ value of the BP -> linear source space
 
