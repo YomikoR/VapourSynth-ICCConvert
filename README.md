@@ -77,13 +77,6 @@ Currently supported `playback_csp` options are the following:
 
 For viewing images, instead, you may also set `playback_csp` as `'srgb'`.
 
-```python
-iccc.Extract(filename, output=<filename>.icc, overwrite=False, fallback_srgb=True)
-```
-Extract embedded color profile from single image, and read its default rendering intent. When there's no embedded profile, sRGB can be a fallback option.
-
-When things are processed as expected, it returns a `dict` with key `path` for the location of extracted ICC file, and key `intent` for the name of its default rendering intent. The naming convention is for using as an argument of the above functions.
-
 ---
 
 ## Manual Compilation
@@ -92,5 +85,3 @@ Please refer to [meson.build](https://github.com/YomikoR/VapourSynth-ICCConvert/
 
 Some details to clarify:
 - In Linux with colord, the colord module should be compiled into a shared library, whose relative path will be used. Therefore, place `libiccc_colord.so` in the same directory of `libiccc.so`, and do not change its name.
-
-- In Windows with ImageMagick, the ImageMagick module should be compiled into a shared library, whose relative path will be used. I did a lazy modification that only changed the ending characters, so it should be always named `xxx_magick.dll` if the main `iccc` plugin is named `xxx.dll`. If this `_magick.dll` is missing, the plugin simply won't register the corresponding functions, so that they won't be visible by VapourSynth. For manual compilation, the `_magick.dll` consists of source files in the `magick` folder.

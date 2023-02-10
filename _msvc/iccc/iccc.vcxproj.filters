@@ -18,9 +18,6 @@
     <ClCompile Include="..\..\src\1886.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\extract.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\iccc.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
