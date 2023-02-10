@@ -538,6 +538,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
 
     cmsHPROFILE inputProfile = nullptr;
+    bool inputIsSRGB = false;
     const char *srcProfilePath = vsapi->mapGetData(in, "csp", 0, &err);
     if (err || strcmp(srcProfilePath, "709") == 0)
     {
@@ -554,6 +555,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     else if (strcmp(srcProfilePath, "srgb") == 0)
     {
         inputProfile = cmsCreate_sRGBProfile();
+        inputIsSRGB = true;
     }
     else
     {
@@ -590,7 +592,11 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     d->transformFlag = cmsFLAGS_NONEGATIVES;
 
-    bool blackPointCompensation = !!vsapi->mapGetInt(in, "black_point_compensation", 0, &err);
+    bool blackPointCompensation = vsapi->mapGetInt(in, "black_point_compensation", 0, &err);
+    if (err)
+    {
+        blackPointCompensation = !inputIsSRGB;
+    }
     if (blackPointCompensation) d->transformFlag |= cmsFLAGS_BLACKPOINTCOMPENSATION;
 
     int clutSize = vsh::int64ToIntS(vsapi->mapGetInt(in, "clut_size", 0, &err));
