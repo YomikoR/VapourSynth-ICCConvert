@@ -7,7 +7,17 @@ Little CMS based ICC profile simulation for VapourSynth.
 ## Usage
 
 ```python
-iccc.Convert(clip, input_icc=<from_frame_properties>, display_icc=<from_system>, intent=<from_input_icc>, proofing_icc=None, proofing_intent=<from_proofing_icc>, gamut_warning=False, gamut_warning_color=[65535, 0, 65535], black_point_compensation=False, clut_size=49, prefer_props=True)
+iccc.Convert(clip, 
+  input_icc=<from_frame_properties>, 
+  display_icc=<from_system>, 
+  intent=<from_input_icc>, 
+  proofing_icc=None, 
+  proofing_intent=<from_proofing_icc>, 
+  gamut_warning=False, 
+  gamut_warning_color=[65535, 0, 65535], 
+  black_point_compensation=False, 
+  clut_size=49, 
+  prefer_props=True)
 ```
 Color profile conversion and soft proofing.
 
@@ -19,14 +29,8 @@ Color profile conversion and soft proofing.
 
 - `display_icc` is the path to the ICC profile for the output, e.g. your monitor (output profile for conversion).
 
-  In Windows and in Linux X11, this parameter is *optional*. The default profile is detected for the current window (e.g. the editor window of VapourSynth Editor, or the console window used to launch vapoursynth-preview, but *not* their preview windows). Procedures of detection are a little different:
-  - Windows: *foreground* window -> monitor -> ICC profile
-    - The profile should be identical to the one shown in Start -> Settings -> System -> Display
-  - Linux, X11: center of the window of *input focus* -> monitor -> ICC profile *by X11* or *by colord* (built differently)
-    - If center of the window is out of any monitor, the detection fails
-    - By connecting and disconnecting monitors, switching the primary display, etc., X11 may easily confuse the color profiles, but colord usually does right
-
-  It's strongly recommended to manually specify the ICC profile for production purpose.
+  Auto detection features have been implemented on a few platforms.
+  See [OS Dependent Notes](#os-dependent-notes). However, it's strongly recommended to manually specify the ICC profile for production purpose.
 
  - `intent` refers to the ICC rendering intent for conversion from the input clip, see [this link](https://helpx.adobe.com/photoshop-elements/kb/color-management-settings-best-print.html#main-pars_header_1). Possible options are
    - "perceptual" for Perceptual
@@ -66,22 +70,60 @@ Color profile conversion and soft proofing.
     ICC profiles are internally hashed to reuse exising ICC transform instances, so duplication of embedded ICC profiles from the input clip won't cause a big performance loss.
 
 ```python
-iccc.Playback(clip, csp='709', display_icc=<from_system>, gamma=None, intent='relative', black_point_compensation=True, clut_size=49)
+iccc.Playback(clip, 
+  csp="709", 
+  display_icc=<from_system>, 
+  gamma=None, 
+  intent="relative", 
+  black_point_compensation=<not_sRGB>, 
+  clut_size=49)
 ```
-Video playback with BT.1886 configuration, or overridden by a given float value of `gamma` (e.g. 2.4 for OLED monitors). This should have the same behavior as the [mpv player](https://mpv.io/).
+Video playback with BT.1886 configuration, or overridden by a given float value of `gamma` (e.g. 2.4 for OLED monitors). For SDR content this should have very similar behavior as the [mpv player](https://mpv.io/).
 
-Currently supported `playback_csp` options are the following:
+Currently supported `csp` options are the following:
 - `'709'` for HD
 - `'2020'` for UHD (SDR)
 - `'170m'` for SD (NTSC)
 
-For viewing images, instead, you may also set `playback_csp` as `'srgb'`.
+For viewing images, instead, you may also set `csp` as `'srgb'`.
+
+This function ignores embedded ICC profiles in frame properties.
 
 ---
 
 ## Manual Compilation
 
-Please refer to [meson.build](https://github.com/YomikoR/VapourSynth-ICCConvert/blob/main/meson.build).
+Please refer to the Meson build script.
 
-Some details to clarify:
-- In Linux with colord, the colord module should be compiled into a shared library, whose relative path will be used. Therefore, place `libiccc_colord.so` in the same directory of `libiccc.so`, and do not change its name.
+---
+
+## OS Dependent Notes
+
+### Path limitations
+
+  For compatibility reasons, some functions are isolated into independent shared libraries:
+  - `libiccc_colord.so` when built with Linux X11 and colord;
+  - `libiccc_cocoa.dylib` when built in macOS with Cocoa.
+  
+  These shared libraries are loaded by relative path to the main plugin, so their names should not be changed.
+  Otherwise auto ICC profile detection silently fails.
+
+### Display profile detection
+
+  The parameter `display_icc` in both functions are *optional* on a few platforms, with some difference in implementation:
+
+  - Windows: detects the profile for the current window (e.g. the editor window of VSEditor, or the console window for vs-preview).
+  
+    Approach: foreground window -> monitor -> ICC profile.
+    
+    Note: result should be identical the one shown in Win 10/11 system settings.
+
+  - Linux X11: detects the profile for the current window (e.g. the editor window of VSEditor, or the console window for vs-preview).
+
+    Approach: center of the window of input focus -> monitor -> ICC profile by colord or by X11 (depending on which variant the plugin was built as).
+
+    Note: If center of the window is out of any monitor, then the detection fails.
+
+  - MacOS: detects the profile used by current parent window that is open (e.g. the editor window of VSEditor). Detection fails when loaded in console.
+
+    Approach: main window -> colorspace -> ICC profile.
