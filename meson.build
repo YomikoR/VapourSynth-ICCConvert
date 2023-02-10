@@ -57,7 +57,6 @@ elif host_machine.system() == 'darwin'
 elif host_machine.system() == 'windows'
     deps += dependency('lcms2', static: true)
     sources += ['src/detection/win32.c']
-    sources += ['src/extract.cc']
     link_args += '-static'
 endif
 
