@@ -1,5 +1,4 @@
 #include "common.hpp"
-#include <iterator>
 
 extern void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 extern void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
@@ -26,8 +25,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin* plugin, const VSPLUGINAPI
 
     vspapi->registerFunction("Playback",
         "clip:vnode;"
+        "csp:data:opt;"
         "display_icc:data:opt;"
-        "playback_csp:data:opt;"
         "gamma:float:opt;"
         "intent:data:opt;"
         "black_point_compensation:int:opt;"

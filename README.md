@@ -66,7 +66,7 @@ Color profile conversion and soft proofing.
     ICC profiles are internally hashed to reuse exising ICC transform instances, so duplication of embedded ICC profiles from the input clip won't cause a big performance loss.
 
 ```python
-iccc.Playback(clip, display_icc, playback_csp='709', gamma=None, intent='relative', black_point_compensation=True, clut_size=49)
+iccc.Playback(clip, csp='709', display_icc=<from_system>, gamma=None, intent='relative', black_point_compensation=True, clut_size=49)
 ```
 Video playback with BT.1886 configuration, or overridden by a given float value of `gamma` (e.g. 2.4 for OLED monitors). This should have the same behavior as the [mpv player](https://mpv.io/).
 

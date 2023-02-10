@@ -538,7 +538,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
 
     cmsHPROFILE inputProfile = nullptr;
-    const char *srcProfilePath = vsapi->mapGetData(in, "playback_csp", 0, &err);
+    const char *srcProfilePath = vsapi->mapGetData(in, "csp", 0, &err);
     if (err || strcmp(srcProfilePath, "709") == 0)
     {
         inputProfile = getPlaybackProfile(csp_709, gamma, d->defaultOutputProfile);
