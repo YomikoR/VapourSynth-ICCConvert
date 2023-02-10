@@ -1,4 +1,5 @@
 #if defined (__linux__) && defined (AUTO_PROFILE_X11)
+#define CMS_NO_REGISTER_KEYWORD 1
 #include <lcms2.h>
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>

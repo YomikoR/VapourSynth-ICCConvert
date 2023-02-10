@@ -25,6 +25,10 @@
 # else
 // TODO: Wayland (?)
 # endif
+#elif defined (__APPLE__)
+# if defined (AUTO_PROFILE_COCOA)
+#  define DETECTION_IMPLEMENTED 10
+# endif
 #endif
 
 #if defined (DETECTION_IMPLEMENTED)

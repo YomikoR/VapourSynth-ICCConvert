@@ -1,4 +1,5 @@
 #if defined (_WIN32)
+#define CMS_NO_REGISTER_KEYWORD 1
 #include <lcms2.h>
 #include <Windows.h>
 
