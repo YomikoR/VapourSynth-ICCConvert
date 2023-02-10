@@ -18,7 +18,6 @@ cmsHPROFILE getSystemProfile()
     strcpy(this_dll_path, dl_info.dli_fname);
     char *this_dll_dir = dirname(this_dll_path);
     char cocoa_dll_path[4000];
-    printf("%s/libiccc_cocoa.dylib", this_dll_dir);
     sprintf(cocoa_dll_path, "%s/libiccc_cocoa.dylib", this_dll_dir);
 
     void *dll_handle = dlopen(cocoa_dll_path, RTLD_LAZY);
