@@ -16,7 +16,7 @@
 #include <X11/Xatom.h>
 # endif
 
-cmsHPROFILE get_profile_sys()
+cmsHPROFILE getSystemProfile()
 {
     Display *dpy = XOpenDisplay(NULL);
     if (!dpy) return NULL;
@@ -141,7 +141,7 @@ cmsHPROFILE get_profile_sys()
     // Get the relative path to libiccc_colord.so
 
     Dl_info dl_info;
-    dladdr((void *)get_profile_sys, &dl_info);
+    dladdr((void *)getSystemProfile, &dl_info);
     char this_dll_path[4000];
     strcpy(this_dll_path, dl_info.dli_fname);
     char *this_dll_dir = dirname(this_dll_path);

@@ -15,7 +15,7 @@ char *mp_to_utf8(const wchar_t *s)
     return ret;
 }
 
-cmsHPROFILE get_profile_sys()
+cmsHPROFILE getSystemProfile()
 {
     HMONITOR monitor = MonitorFromWindow(GetForegroundWindow(), MONITOR_DEFAULTTONEAREST);
     MONITORINFOEXW mi = { .cbSize = sizeof mi };

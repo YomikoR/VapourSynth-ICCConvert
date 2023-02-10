@@ -9,10 +9,13 @@ struct inputICCData
 {
     // The profile, should be closed after transform creation
     cmsHPROFILE profile;
+
     // Plugin ID from header
     cmsUInt32Number ID32[4];
+
     // Rendering intent
     cmsUInt32Number intent;
+
     // Equality
     bool operator==(const inputICCData &ind) const
     {
@@ -22,6 +25,7 @@ struct inputICCData
         }
         return intent == ind.intent;
     }
+
     // Hash on construction
     inputICCData(cmsHPROFILE profile, cmsUInt32Number intent) : profile{profile}, intent{intent}
     {
@@ -44,50 +48,50 @@ struct icccData
     // Video
     VSNode *node;
     VSVideoInfo vi;
-    std::unordered_map<inputICCData, cmsHTRANSFORM, inputICCHashFunction> transform_map;
-    std::mutex transform_map_mutex;
+    std::unordered_map<inputICCData, cmsHTRANSFORM, inputICCHashFunction> transformMap;
+    std::mutex mutex;
     // Defaults
-    cmsHPROFILE default_out;
-    cmsHTRANSFORM default_transform; // This one is a copy from the map, don't free it directly
-    cmsUInt32Number default_intent;
-    cmsUInt32Number transform_flag;
+    cmsHPROFILE defaultOutputProfile;
+    cmsHTRANSFORM defaultTransform; // This one is a copy from the map, don't free it directly
+    cmsUInt32Number defaultIntent;
+    cmsUInt32Number transformFlag;
     // Format: now either RGB24 or RGB48
-    cmsUInt32Number datatype;
-    p2p_packing p2p_type = p2p_packing_max;
+    cmsUInt32Number lcmsDataType;
+    p2p_packing p2pType = p2p_packing_max;
     // Flag for using props
-    bool prefer_props;
+    bool preferProps;
     // Proofing profile and intent
-    cmsHPROFILE proofing = nullptr;
-    cmsUInt32Number proofing_intent;
+    cmsHPROFILE proofingProfile = nullptr;
+    cmsUInt32Number proofingIntent;
     void clear()
     {
-        if (default_out) cmsCloseProfile(default_out);
-        for (auto pair : transform_map)
+        if (defaultOutputProfile) cmsCloseProfile(defaultOutputProfile);
+        for (auto pair : transformMap)
         {
             if (pair.second) cmsDeleteTransform(pair.second);
         }
-        if (proofing) cmsCloseProfile(proofing);
+        if (proofingProfile) cmsCloseProfile(proofingProfile);
     }
 };
 
 static cmsHTRANSFORM getTransform(const inputICCData &ind, icccData *d)
 {
-    std::lock_guard<std::mutex> lock(d->transform_map_mutex);
-    auto found = d->transform_map.find(ind);
-    if (found == d->transform_map.end())
+    std::lock_guard<std::mutex> lock(d->mutex);
+    auto found = d->transformMap.find(ind);
+    if (found == d->transformMap.end())
     {
         cmsHTRANSFORM transform;
-        if (d->proofing)
+        if (d->proofingProfile)
         {
-            transform = cmsCreateProofingTransform(ind.profile, d->datatype, d->default_out, d->datatype, d->proofing, d->default_intent, d->proofing_intent, d->transform_flag);
+            transform = cmsCreateProofingTransform(ind.profile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, d->proofingProfile, d->defaultIntent, d->proofingIntent, d->transformFlag);
         }
         else
         {
-            transform = cmsCreateTransform(ind.profile, d->datatype, d->default_out, d->datatype, ind.intent, d->transform_flag);
+            transform = cmsCreateTransform(ind.profile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, ind.intent, d->transformFlag);
         }
         if (transform)
         {
-            d->transform_map[ind] = transform;
+            d->transformMap[ind] = transform;
             return transform;
         }
         else return nullptr;
@@ -110,45 +114,44 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
         int height = vsapi->getFrameHeight(frame, 0);
         int stride = vsapi->getStride(frame, 0);
 
-        VSFrame *dst_frame = vsapi->newVideoFrame(&d->vi.format, width, height, frame, core);
+        VSFrame *dstFrame = vsapi->newVideoFrame(&d->vi.format, width, height, frame, core);
 
         // Create or find transform
-        cmsHTRANSFORM transform = d->default_transform;
-        if (d->prefer_props)
+        cmsHTRANSFORM transform = d->defaultTransform;
+        if (d->preferProps)
         {
-            VSMap *map = vsapi->getFramePropertiesRW(dst_frame);
+            VSMap *map = vsapi->getFramePropertiesRW(dstFrame);
             int err;
-            int icc_len = vsapi->mapGetDataSize(map, "ICCProfile", 0, &err);
-            if (!err && icc_len > 0)
+            int iccLength = vsapi->mapGetDataSize(map, "ICCProfile", 0, &err);
+            if (!err && iccLength > 0)
             {
-                const char *icc_data = vsapi->mapGetData(map, "ICCProfile", 0, &err);
+                const char *iccData = vsapi->mapGetData(map, "ICCProfile", 0, &err);
                 // Create profile
-                cmsHPROFILE inp = cmsOpenProfileFromMem(icc_data, icc_len);
+                cmsHPROFILE inp = cmsOpenProfileFromMem(iccData, iccLength);
                 if (inp)
                 {
                     // Sanity checks
                     if ((cmsGetDeviceClass(inp) != cmsSigDisplayClass) && (cmsGetDeviceClass(inp) != cmsSigInputClass))
                     {
                         vsapi->freeFrame(frame);
-                        vsapi->freeFrame(dst_frame);
+                        vsapi->freeFrame(dstFrame);
                         vsapi->setFilterError("iccc: The device class of the embedded ICC profile is not supported.", frameCtx);
                         return nullptr;
                     }
                     if (cmsGetColorSpace(inp) != cmsSigRgbData)
                     {
                         vsapi->freeFrame(frame);
-                        vsapi->freeFrame(dst_frame);
+                        vsapi->freeFrame(dstFrame);
                         vsapi->setFilterError("iccc: The colorspace of the embedded ICC profile is not supported.", frameCtx);
                         return nullptr;
                     }
-                    cmsUInt32Number intent = cmsGetHeaderRenderingIntent(inp);
-                    inputICCData ind(inp, intent);
+                    inputICCData ind(inp, cmsGetHeaderRenderingIntent(inp));
                     transform = getTransform(ind, d);
                     cmsCloseProfile(inp);
                     if (!transform)
                     {
                         vsapi->freeFrame(frame);
-                        vsapi->freeFrame(dst_frame);
+                        vsapi->freeFrame(dstFrame);
                         vsapi->setFilterError("iccc: Failed to create transform from embedded ICC profile.", frameCtx);
                         return nullptr;
                     }
@@ -156,7 +159,7 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
                 else
                 {
                     vsapi->freeFrame(frame);
-                    vsapi->freeFrame(dst_frame);
+                    vsapi->freeFrame(dstFrame);
                     vsapi->setFilterError("iccc: Unable to read embedded ICC profile. Corrupted?", frameCtx);
                     return nullptr;
                 }
@@ -167,7 +170,7 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
         if (!transform)
         {
             vsapi->freeFrame(frame);
-            vsapi->freeFrame(dst_frame);
+            vsapi->freeFrame(dstFrame);
             vsapi->setFilterError("iccc: Failed to construct transform. This may be caused by insufficient ICC profile info provided.", frameCtx);
             return nullptr;
         }
@@ -176,7 +179,7 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
         if (!packed)
         {
             vsapi->freeFrame(frame);
-            vsapi->freeFrame(dst_frame);
+            vsapi->freeFrame(dstFrame);
             vsapi->setFilterError("iccc: Out of memory when constructing transform.", frameCtx);
             return nullptr;
         }
@@ -192,7 +195,7 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
         }
         p2p_src.dst[0] = packed;
         p2p_src.dst_stride[0] = stride * 3;
-        p2p_src.packing = d->p2p_type;
+        p2p_src.packing = d->p2pType;
         p2p_pack_frame(&p2p_src, 0);
 
         // Transform
@@ -204,17 +207,17 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
         p2p_dst.height = height;
         for (int plane = 0; plane < 3; ++plane)
         {
-            p2p_dst.dst[plane] = vsapi->getWritePtr(dst_frame, plane);
-            p2p_dst.dst_stride[plane] = vsapi->getStride(dst_frame, plane);
+            p2p_dst.dst[plane] = vsapi->getWritePtr(dstFrame, plane);
+            p2p_dst.dst_stride[plane] = vsapi->getStride(dstFrame, plane);
         }
         p2p_dst.src[0] = packed;
         p2p_dst.src_stride[0] = stride * 3;
-        p2p_dst.packing = d->p2p_type;
+        p2p_dst.packing = d->p2pType;
         p2p_unpack_frame(&p2p_dst, 0);
 
         vsh::vsh_aligned_free(packed);
         vsapi->freeFrame(frame);
-        return dst_frame;
+        return dstFrame;
     }
     return nullptr;
 }
@@ -233,17 +236,17 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
-    uint32_t src_format = vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core);
+    uint32_t srcFormat = vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core);
 
-    if (src_format == pfRGB24)
+    if (srcFormat == pfRGB24)
     {
-        d->datatype = TYPE_BGR_8;
-        d->p2p_type = p2p_rgb24;
+        d->lcmsDataType = TYPE_BGR_8;
+        d->p2pType = p2p_rgb24;
     }
-    else if (src_format == pfRGB48)
+    else if (srcFormat == pfRGB48)
     {
-        d->datatype = TYPE_BGR_16;
-        d->p2p_type = p2p_rgb48;
+        d->lcmsDataType = TYPE_BGR_16;
+        d->p2pType = p2p_rgb48;
     }
     else
     {
@@ -256,205 +259,205 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     int err;
 
-    d->prefer_props = vsapi->mapGetInt(in, "prefer_props", 0, &err) || err;
+    d->preferProps = vsapi->mapGetInt(in, "prefer_props", 0, &err) || err;
 
-    cmsHPROFILE input_profile = nullptr;
-    const char *src_profile = vsapi->mapGetData(in, "input_icc", 0, &err);
-    if (err || !src_profile)
+    cmsHPROFILE inputProfile = nullptr;
+    const char *srcProfilePath = vsapi->mapGetData(in, "input_icc", 0, &err);
+    if (err || !srcProfilePath)
     {
-        src_profile = vsapi->mapGetData(in, "simulation_icc", 0, &err);
+        srcProfilePath = vsapi->mapGetData(in, "simulation_icc", 0, &err);
     }
-    if (err || !src_profile)
+    if (err || !srcProfilePath)
     {
-        input_profile = nullptr;
+        inputProfile = nullptr;
     }
-    else if (!(input_profile = cmsOpenProfileFromFile(src_profile, "r")))
+    else if (!(inputProfile = cmsOpenProfileFromFile(srcProfilePath, "r")))
     {
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Input profile seems invalid.");
         return;
     }
-    else if ((cmsGetDeviceClass(input_profile) != cmsSigDisplayClass) && (cmsGetDeviceClass(input_profile) != cmsSigInputClass))
+    else if ((cmsGetDeviceClass(inputProfile) != cmsSigDisplayClass) && (cmsGetDeviceClass(inputProfile) != cmsSigInputClass))
     {
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Input profile must have 'display' ('mntr') or 'input' ('scnr') device class.");
         return;
     }
-    else if (cmsGetColorSpace(input_profile) != cmsSigRgbData)
+    else if (cmsGetColorSpace(inputProfile) != cmsSigRgbData)
     {
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Input profile must be for RGB colorspace.");
         return;
     }
-    if (!d->prefer_props && !input_profile)
+    if (!d->preferProps && !inputProfile)
     {
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Input profile must be provided unless frame properties are preferred.");
         return;
     }
 
-    const char *dst_profile = vsapi->mapGetData(in, "display_icc", 0, &err);
-    if (err || !dst_profile)
+    const char *dstProfile = vsapi->mapGetData(in, "display_icc", 0, &err);
+    if (err || !dstProfile)
     {
-        d->default_out = get_profile_sys();
-        if (!d->default_out)
+        d->defaultOutputProfile = getSystemProfile();
+        if (!d->defaultOutputProfile)
         {
-            input_profile && cmsCloseProfile(input_profile);
+            inputProfile && cmsCloseProfile(inputProfile);
             vsapi->freeNode(d->node);
             vsapi->mapSetError(out, "iccc: Auto detection of display ICC failed. You should specify the output profile from file instead.");
             return;
         }
     }
-    else if (!(d->default_out = cmsOpenProfileFromFile(dst_profile, "r")))
+    else if (!(d->defaultOutputProfile = cmsOpenProfileFromFile(dstProfile, "r")))
     {
-        input_profile && cmsCloseProfile(input_profile);
+        inputProfile && cmsCloseProfile(inputProfile);
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Display (output) profile seems invalid.");
         return;
     }
-    else if ((cmsGetDeviceClass(d->default_out) != cmsSigDisplayClass) && (cmsGetDeviceClass(d->default_out) != cmsSigOutputClass))
+    else if ((cmsGetDeviceClass(d->defaultOutputProfile) != cmsSigDisplayClass) && (cmsGetDeviceClass(d->defaultOutputProfile) != cmsSigOutputClass))
     {
-        cmsCloseProfile(d->default_out);
-        input_profile && cmsCloseProfile(input_profile);
+        cmsCloseProfile(d->defaultOutputProfile);
+        inputProfile && cmsCloseProfile(inputProfile);
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Display (output) profile must have 'display' ('mntr') or 'output' ('prtr') device class.");
         return;
     }
-    else if (cmsGetColorSpace(d->default_out) != cmsSigRgbData)
+    else if (cmsGetColorSpace(d->defaultOutputProfile) != cmsSigRgbData)
     {
-        cmsCloseProfile(d->default_out);
-        input_profile && cmsCloseProfile(input_profile);
+        cmsCloseProfile(d->defaultOutputProfile);
+        inputProfile && cmsCloseProfile(inputProfile);
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Display profile must be for RGB colorspace.");
         return;
     }
 
-    const char *sim_intent = vsapi->mapGetData(in, "intent", 0, &err);
-    if (err || !sim_intent)
+    const char *intentString = vsapi->mapGetData(in, "intent", 0, &err);
+    if (err || !intentString)
     {
-        if (input_profile) d->default_intent = cmsGetHeaderRenderingIntent(input_profile);
+        if (inputProfile) d->defaultIntent = cmsGetHeaderRenderingIntent(inputProfile);
     }
-    else if (strcmp(sim_intent, "perceptual") == 0) d->default_intent = INTENT_PERCEPTUAL;
-    else if (strcmp(sim_intent, "relative") == 0) d->default_intent = INTENT_RELATIVE_COLORIMETRIC;
-    else if (strcmp(sim_intent, "saturation") == 0) d->default_intent = INTENT_SATURATION;
-    else if (strcmp(sim_intent, "absolute") == 0) d->default_intent = INTENT_ABSOLUTE_COLORIMETRIC;
+    else if (strcmp(intentString, "perceptual") == 0) d->defaultIntent = INTENT_PERCEPTUAL;
+    else if (strcmp(intentString, "relative") == 0) d->defaultIntent = INTENT_RELATIVE_COLORIMETRIC;
+    else if (strcmp(intentString, "saturation") == 0) d->defaultIntent = INTENT_SATURATION;
+    else if (strcmp(intentString, "absolute") == 0) d->defaultIntent = INTENT_ABSOLUTE_COLORIMETRIC;
     else
     {
-        cmsCloseProfile(d->default_out);
-        input_profile && cmsCloseProfile(input_profile);
+        cmsCloseProfile(d->defaultOutputProfile);
+        inputProfile && cmsCloseProfile(inputProfile);
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Input ICC intent is not supported.");
         return;
     }
 
-    d->transform_flag = cmsFLAGS_NONEGATIVES;
+    d->transformFlag = cmsFLAGS_NONEGATIVES;
 
-    const char *proofing_profile = vsapi->mapGetData(in, "proofing_icc", 0, &err);
-    if (proofing_profile)
+    const char *proofingProfilePath = vsapi->mapGetData(in, "proofing_icc", 0, &err);
+    if (proofingProfilePath)
     {
-        if (!(d->proofing = cmsOpenProfileFromFile(proofing_profile, "r")))
+        if (!(d->proofingProfile = cmsOpenProfileFromFile(proofingProfilePath, "r")))
         {
-            cmsCloseProfile(d->default_out);
-            input_profile && cmsCloseProfile(input_profile);
+            cmsCloseProfile(d->defaultOutputProfile);
+            inputProfile && cmsCloseProfile(inputProfile);
             vsapi->freeNode(d->node);
             vsapi->mapSetError(out, "iccc: Proofing profile seems invalid.");
             return;
         }
-        else if (cmsGetDeviceClass(d->proofing) != cmsSigDisplayClass || cmsGetDeviceClass(d->proofing) != cmsSigOutputClass)
+        else if (cmsGetDeviceClass(d->proofingProfile) != cmsSigDisplayClass || cmsGetDeviceClass(d->proofingProfile) != cmsSigOutputClass)
         {
-            cmsCloseProfile(d->default_out);
-            input_profile && cmsCloseProfile(input_profile);
+            cmsCloseProfile(d->defaultOutputProfile);
+            inputProfile && cmsCloseProfile(inputProfile);
             vsapi->freeNode(d->node);
             vsapi->mapSetError(out, "iccc: Proofing profile must have 'display' ('mntr') or 'output' ('prtr') device class.");
             return;
         }
-        d->transform_flag |= cmsFLAGS_SOFTPROOFING;
+        d->transformFlag |= cmsFLAGS_SOFTPROOFING;
     }
 
-    const char *pf_intent = nullptr;
-    if (d->proofing)
+    const char *proofingIntentString = nullptr;
+    if (d->proofingProfile)
     {
-        pf_intent = vsapi->mapGetData(in, "proofing_intent", 0, &err);
-        if (err || !pf_intent)
+        proofingIntentString = vsapi->mapGetData(in, "proofing_intent", 0, &err);
+        if (err || !proofingIntentString)
         {
-            d->proofing_intent = cmsGetHeaderRenderingIntent(d->proofing);
+            d->proofingIntent = cmsGetHeaderRenderingIntent(d->proofingProfile);
         }
-        else if (strcmp(pf_intent, "perceptual") == 0) d->proofing_intent = INTENT_PERCEPTUAL;
-        else if (strcmp(pf_intent, "relative") == 0) d->proofing_intent = INTENT_RELATIVE_COLORIMETRIC;
-        else if (strcmp(pf_intent, "saturation") == 0) d->proofing_intent = INTENT_SATURATION;
-        else if (strcmp(pf_intent, "absolute") == 0) d->proofing_intent = INTENT_ABSOLUTE_COLORIMETRIC;
+        else if (strcmp(proofingIntentString, "perceptual") == 0) d->proofingIntent = INTENT_PERCEPTUAL;
+        else if (strcmp(proofingIntentString, "relative") == 0) d->proofingIntent = INTENT_RELATIVE_COLORIMETRIC;
+        else if (strcmp(proofingIntentString, "saturation") == 0) d->proofingIntent = INTENT_SATURATION;
+        else if (strcmp(proofingIntentString, "absolute") == 0) d->proofingIntent = INTENT_ABSOLUTE_COLORIMETRIC;
         else
         {
-            cmsCloseProfile(d->default_out);
-            input_profile && cmsCloseProfile(input_profile);
-            cmsCloseProfile(d->proofing);
+            cmsCloseProfile(d->defaultOutputProfile);
+            inputProfile && cmsCloseProfile(inputProfile);
+            cmsCloseProfile(d->proofingProfile);
             vsapi->freeNode(d->node);
-            vsapi->mapSetError(out, "iccc: Proofing intent is not supported.");
+            vsapi->mapSetError(out, "iccc: Input proofing intent is not supported.");
             return;
         }
     }
 
-    bool gamut_warning = !!vsapi->mapGetInt(in, "gamut_warning", 0, &err);
-    if (gamut_warning)
+    bool gamutWarning = !!vsapi->mapGetInt(in, "gamut_warning", 0, &err);
+    if (gamutWarning)
     {
-        d->transform_flag |= cmsFLAGS_GAMUTCHECK;
+        d->transformFlag |= cmsFLAGS_GAMUTCHECK;
         assert(cmsMAXCHANNELS > 3);
-        cmsUInt16Number gamut_warning_color[cmsMAXCHANNELS] = {65535, 0, 65535};
+        cmsUInt16Number gamutWarningColor[cmsMAXCHANNELS] = {65535, 0, 65535};
         if (vsapi->mapNumElements(in, "gamut_warning_color") == 3)
         {
             for (int i = 0; i < 3; ++i)
             {
-                gamut_warning_color[i] = static_cast<cmsUInt16Number>(vsapi->mapGetInt(in, "gamut_warning_color", i, nullptr));
+                gamutWarningColor[i] = static_cast<cmsUInt16Number>(vsapi->mapGetInt(in, "gamut_warning_color", i, nullptr));
             }
         }
-        cmsSetAlarmCodes(gamut_warning_color);
+        cmsSetAlarmCodes(gamutWarningColor);
     }
 
-    bool black_point_compensation = !!vsapi->mapGetInt(in, "black_point_compensation", 0, &err);
-    if (black_point_compensation) d->transform_flag |= cmsFLAGS_BLACKPOINTCOMPENSATION;
+    bool blackPointCompensation = !!vsapi->mapGetInt(in, "black_point_compensation", 0, &err);
+    if (blackPointCompensation) d->transformFlag |= cmsFLAGS_BLACKPOINTCOMPENSATION;
 
-    int clut_size = vsh::int64ToIntS(vsapi->mapGetInt(in, "clut_size", 0, &err));
-    if (err) clut_size = 1;
-    if (clut_size == -1) clut_size = 17; // default for cmsFLAGS_LOWRESPRECALC
-    else if (clut_size == 0) clut_size = 33; // default
-    else if (clut_size == 1) clut_size = 49; // default for cmsFLAGS_HIGHRESPRECALC
-    else if ((clut_size < -1) || (clut_size > 255))
+    int clutSize = vsh::int64ToIntS(vsapi->mapGetInt(in, "clut_size", 0, &err));
+    if (err) clutSize = 1;
+    if (clutSize == -1) clutSize = 17; // default for cmsFLAGS_LOWRESPRECALC
+    else if (clutSize == 0) clutSize = 33; // default
+    else if (clutSize == 1) clutSize = 49; // default for cmsFLAGS_HIGHRESPRECALC
+    else if ((clutSize < -1) || (clutSize > 255))
     {
-        cmsCloseProfile(d->default_out);
-        input_profile && cmsCloseProfile(input_profile);
-        cmsCloseProfile(d->proofing);
+        cmsCloseProfile(d->defaultOutputProfile);
+        inputProfile && cmsCloseProfile(inputProfile);
+        cmsCloseProfile(d->proofingProfile);
         vsapi->freeNode(d->node);
-        vsapi->mapSetError(out, "iccc: Input clut size seems not valid.");
+        vsapi->mapSetError(out, "iccc: Input clut size seems invalid.");
         return;
     }
-    d->transform_flag |= cmsFLAGS_GRIDPOINTS(clut_size);
+    d->transformFlag |= cmsFLAGS_GRIDPOINTS(clutSize);
 
     // Create a default transform. If it's null, leave error report to the runtime.
-    if (input_profile)
+    if (inputProfile)
     {
-        if (d->proofing)
+        if (d->proofingProfile)
         {
-            d->default_transform = cmsCreateProofingTransform(input_profile, d->datatype, d->default_out, d->datatype, d->proofing, d->default_intent, d->proofing_intent, d->transform_flag);
+            d->defaultTransform = cmsCreateProofingTransform(inputProfile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, d->proofingProfile, d->defaultIntent, d->proofingIntent, d->transformFlag);
         }
         else
         {
-            d->default_transform = cmsCreateTransform(input_profile, d->datatype, d->default_out, d->datatype, d->default_intent, d->transform_flag);
+            d->defaultTransform = cmsCreateTransform(inputProfile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, d->defaultIntent, d->transformFlag);
         }
-        inputICCData ind(input_profile, d->default_intent);
-        d->transform_map[ind] = d->default_transform;
-        cmsCloseProfile(input_profile);
+        inputICCData ind(inputProfile, d->defaultIntent);
+        d->transformMap[ind] = d->defaultTransform;
+        cmsCloseProfile(inputProfile);
     }
     else
     {
-        d->default_transform = nullptr;
+        d->defaultTransform = nullptr;
     }
 
-    std::vector<VSFilterDependency> dep_req =
+    std::vector<VSFilterDependency> depReq =
     {
         {d->node, rpStrictSpatial}
     };
 
-    vsapi->createVideoFilter(out, "Convert", &d->vi, icccGetFrame, icccFree, fmParallel, dep_req.data(), dep_req.size(), d.get(), core);
+    vsapi->createVideoFilter(out, "Convert", &d->vi, icccGetFrame, icccFree, fmParallel, depReq.data(), depReq.size(), d.get(), core);
     d.release();
 }
 
@@ -466,17 +469,17 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
 
-    uint32_t src_format = vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core);
+    uint32_t srcFormat = vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core);
 
-    if (src_format == pfRGB24)
+    if (srcFormat == pfRGB24)
     {
-        d->datatype = TYPE_BGR_8;
-        d->p2p_type = p2p_rgb24;
+        d->lcmsDataType = TYPE_BGR_8;
+        d->p2pType = p2p_rgb24;
     }
-    else if (src_format == pfRGB48)
+    else if (srcFormat == pfRGB48)
     {
-        d->datatype = TYPE_BGR_16;
-        d->p2p_type = p2p_rgb48;
+        d->lcmsDataType = TYPE_BGR_16;
+        d->p2pType = p2p_rgb48;
     }
     else
     {
@@ -489,33 +492,33 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     int err;
 
-    const char *dst_profile = vsapi->mapGetData(in, "display_icc", 0, &err);
-    if (err || !dst_profile)
+    const char *dstProfile = vsapi->mapGetData(in, "display_icc", 0, &err);
+    if (err || !dstProfile)
     {
-        d->default_out = get_profile_sys();
-        if (!d->default_out)
+        d->defaultOutputProfile = getSystemProfile();
+        if (!d->defaultOutputProfile)
         {
             vsapi->freeNode(d->node);
             vsapi->mapSetError(out, "iccc: Auto detection of display ICC failed. You should specify from file instead.");
             return;
         }
     }
-    else if (!(d->default_out = cmsOpenProfileFromFile(dst_profile, "r")))
+    else if (!(d->defaultOutputProfile = cmsOpenProfileFromFile(dstProfile, "r")))
     {
         vsapi->freeNode(d->node);
-        vsapi->mapSetError(out, "iccc: Input display profile seems to be invalid.");
+        vsapi->mapSetError(out, "iccc: Input display profile seems invalid.");
         return;
     }
-    else if ((cmsGetDeviceClass(d->default_out) != cmsSigDisplayClass) && (cmsGetDeviceClass(d->default_out) != cmsSigOutputClass))
+    else if ((cmsGetDeviceClass(d->defaultOutputProfile) != cmsSigDisplayClass) && (cmsGetDeviceClass(d->defaultOutputProfile) != cmsSigOutputClass))
     {
-        cmsCloseProfile(d->default_out);
+        cmsCloseProfile(d->defaultOutputProfile);
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Input display profile must have 'display' ('mntr') or 'output' ('prtr') device class.");
         return;
     }
-    else if (cmsGetColorSpace(d->default_out) != cmsSigRgbData)
+    else if (cmsGetColorSpace(d->defaultOutputProfile) != cmsSigRgbData)
     {
-        cmsCloseProfile(d->default_out);
+        cmsCloseProfile(d->defaultOutputProfile);
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Input display profile must be for RGB colorspace.");
         return;
@@ -528,104 +531,104 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     else if ((gamma < 0.01) || (gamma > 100.0))
     {
-        cmsCloseProfile(d->default_out);
+        cmsCloseProfile(d->defaultOutputProfile);
         vsapi->freeNode(d->node);
-        vsapi->mapSetError(out, "iccc: Input gamma value is allowed between 0.01 and 100.0.");
+        vsapi->mapSetError(out, "iccc: Input gamma value is only allowed between 0.01 and 100.0.");
         return;
     }
 
-    cmsHPROFILE input_profile = nullptr;
-    const char *src_profile = vsapi->mapGetData(in, "playback_csp", 0, &err);
-    if (err || strcmp(src_profile, "709") == 0)
+    cmsHPROFILE inputProfile = nullptr;
+    const char *srcProfilePath = vsapi->mapGetData(in, "playback_csp", 0, &err);
+    if (err || strcmp(srcProfilePath, "709") == 0)
     {
-        input_profile = get_profile_playback(csp_709, gamma, d->default_out);
+        inputProfile = getPlaybackProfile(csp_709, gamma, d->defaultOutputProfile);
     }
-    else if ((strcmp(src_profile, "170m") == 0) || (strcmp(src_profile, "601-525") == 0))
+    else if ((strcmp(srcProfilePath, "170m") == 0) || (strcmp(srcProfilePath, "601-525") == 0))
     {
-        input_profile = get_profile_playback(csp_601_525, gamma, d->default_out);
+        inputProfile = getPlaybackProfile(csp_601_525, gamma, d->defaultOutputProfile);
     }
-    else if ((strcmp(src_profile, "2020") == 0) || (strcmp(src_profile, "2020-10") == 0) || (strcmp(src_profile, "2020-12") == 0))
+    else if (strcmp(srcProfilePath, "2020") == 0)
     {
-        input_profile = get_profile_playback(csp_2020, gamma, d->default_out);
+        inputProfile = getPlaybackProfile(csp_2020, gamma, d->defaultOutputProfile);
     }
-    else if (strcmp(src_profile, "srgb") == 0)
+    else if (strcmp(srcProfilePath, "srgb") == 0)
     {
-        input_profile = cmsCreate_sRGBProfile();
+        inputProfile = cmsCreate_sRGBProfile();
     }
     else
     {
-        cmsCloseProfile(d->default_out);
+        cmsCloseProfile(d->defaultOutputProfile);
         vsapi->freeNode(d->node);
-        vsapi->mapSetError(out, "iccc: Input color space not yet supported.");
+        vsapi->mapSetError(out, "iccc: Input color space is not yet supported.");
         return;
     }
-    if (!input_profile)
+    if (!inputProfile)
     {
-        cmsCloseProfile(d->default_out);
+        cmsCloseProfile(d->defaultOutputProfile);
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Failed to generate ICC for playback.");
         return;
     }
 
-    const char *intent = vsapi->mapGetData(in, "intent", 0, &err);
+    const char *intentString = vsapi->mapGetData(in, "intent", 0, &err);
     if (err) // Default of mpv
     {
-        d->default_intent = INTENT_RELATIVE_COLORIMETRIC;
+        d->defaultIntent = INTENT_RELATIVE_COLORIMETRIC;
     }
-    else if (strcmp(intent, "perceptual") == 0) d->default_intent = INTENT_PERCEPTUAL;
-    else if (strcmp(intent, "relative") == 0) d->default_intent = INTENT_RELATIVE_COLORIMETRIC;
-    else if (strcmp(intent, "saturation") == 0) d->default_intent = INTENT_SATURATION;
-    else if (strcmp(intent, "absolute") == 0) d->default_intent = INTENT_ABSOLUTE_COLORIMETRIC;
+    else if (strcmp(intentString, "perceptual") == 0) d->defaultIntent = INTENT_PERCEPTUAL;
+    else if (strcmp(intentString, "relative") == 0) d->defaultIntent = INTENT_RELATIVE_COLORIMETRIC;
+    else if (strcmp(intentString, "saturation") == 0) d->defaultIntent = INTENT_SATURATION;
+    else if (strcmp(intentString, "absolute") == 0) d->defaultIntent = INTENT_ABSOLUTE_COLORIMETRIC;
     else
     {
-        cmsCloseProfile(d->default_out);
-        cmsCloseProfile(input_profile);
+        cmsCloseProfile(d->defaultOutputProfile);
+        cmsCloseProfile(inputProfile);
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Input ICC intent is not supported.");
         return;
     }
 
-    d->transform_flag = cmsFLAGS_NONEGATIVES;
+    d->transformFlag = cmsFLAGS_NONEGATIVES;
 
-    bool black_point_compensation = !!vsapi->mapGetInt(in, "black_point_compensation", 0, &err);
-    if (black_point_compensation) d->transform_flag |= cmsFLAGS_BLACKPOINTCOMPENSATION;
+    bool blackPointCompensation = !!vsapi->mapGetInt(in, "black_point_compensation", 0, &err);
+    if (blackPointCompensation) d->transformFlag |= cmsFLAGS_BLACKPOINTCOMPENSATION;
 
-    int clut_size = vsh::int64ToIntS(vsapi->mapGetInt(in, "clut_size", 0, &err));
-    if (err) clut_size = 1;
-    if (clut_size == -1) clut_size = 17; // default for cmsFLAGS_LOWRESPRECALC
-    else if (clut_size == 0) clut_size = 33; // default
-    else if (clut_size == 1) clut_size = 49; // default for cmsFLAGS_HIGHRESPRECALC
-    else if ((clut_size < -1) || (clut_size > 255))
+    int clutSize = vsh::int64ToIntS(vsapi->mapGetInt(in, "clut_size", 0, &err));
+    if (err) clutSize = 1;
+    if (clutSize == -1) clutSize = 17; // default for cmsFLAGS_LOWRESPRECALC
+    else if (clutSize == 0) clutSize = 33; // default
+    else if (clutSize == 1) clutSize = 49; // default for cmsFLAGS_HIGHRESPRECALC
+    else if ((clutSize < -1) || (clutSize > 255))
     {
-        cmsCloseProfile(d->default_out);
-        cmsCloseProfile(input_profile);
+        cmsCloseProfile(d->defaultOutputProfile);
+        cmsCloseProfile(inputProfile);
         vsapi->freeNode(d->node);
-        vsapi->mapSetError(out, "iccc: Input clut size seems not valid.");
+        vsapi->mapSetError(out, "iccc: Input clut size seems invalid.");
         return;
     }
-    d->transform_flag |= cmsFLAGS_GRIDPOINTS(clut_size);
+    d->transformFlag |= cmsFLAGS_GRIDPOINTS(clutSize);
 
-    d->default_transform = cmsCreateTransform(input_profile, d->datatype, d->default_out, d->datatype, d->default_intent, d->transform_flag);
-    if (!d->default_transform)
+    d->defaultTransform = cmsCreateTransform(inputProfile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, d->defaultIntent, d->transformFlag);
+    if (!d->defaultTransform)
     {
-        cmsCloseProfile(d->default_out);
-        cmsCloseProfile(input_profile);
+        cmsCloseProfile(d->defaultOutputProfile);
+        cmsCloseProfile(inputProfile);
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Failed to create transform for playback.");
         return;
     }
-    // This is not necessary but we are going to free default_transform there
-    inputICCData ind(input_profile, d->default_intent);
-    d->transform_map[ind] = d->default_transform;
-    cmsCloseProfile(input_profile);
+    // This is not necessary but we are going to free defaultTransform there
+    inputICCData ind(inputProfile, d->defaultIntent);
+    d->transformMap[ind] = d->defaultTransform;
+    cmsCloseProfile(inputProfile);
 
-    d->prefer_props = false;
+    d->preferProps = false;
 
-    std::vector<VSFilterDependency> dep_req =
+    std::vector<VSFilterDependency> depReq =
     {
         {d->node, rpStrictSpatial}
     };
 
-    vsapi->createVideoFilter(out, "Playback", &d->vi, icccGetFrame, icccFree, fmParallel, dep_req.data(), dep_req.size(), d.get(), core);
+    vsapi->createVideoFilter(out, "Playback", &d->vi, icccGetFrame, icccFree, fmParallel, depReq.data(), depReq.size(), d.get(), core);
     d.release();
 }
