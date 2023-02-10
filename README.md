@@ -81,11 +81,11 @@ iccc.Playback(clip,
 Video playback with BT.1886 configuration, or overridden by a given float value of `gamma` (e.g. 2.4 for OLED monitors). For SDR content this should have very similar behavior as the [mpv player](https://mpv.io/).
 
 Currently supported `csp` options are the following:
-- `'709'` for HD
-- `'2020'` for UHD (SDR)
-- `'170m'` for SD (NTSC)
+- `"709"` for HD
+- `"2020"` for UHD (SDR)
+- `"170m"` for SD (NTSC)
 
-For viewing images, instead, you may also set `csp` as `'srgb'`.
+For viewing images, instead, you may also set `csp` as `"srgb"`.
 
 This function ignores embedded ICC profiles in frame properties.
 
@@ -93,7 +93,7 @@ This function ignores embedded ICC profiles in frame properties.
 
 ## Manual Compilation
 
-Please refer to the Meson build script.
+Please refer to the Meson build script or the MSVC project.
 
 ---
 
