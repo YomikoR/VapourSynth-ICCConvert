@@ -4,7 +4,7 @@
 // This part generates a BT.1886 profile, basically, taken from mpv
 // https://github.com/mpv-player/mpv/blob/ec0006bfa1aaf608a7141929f2871c89ac7a15d6/video/out/gpu/lcms.c#L275-L326
 
-cmsHPROFILE getPlaybackProfile(const cspData &csp, const double gamma, const cmsHPROFILE &displayProfile)
+cmsHPROFILE getPlaybackProfile(const cspData &csp, const double gamma, const double contrast, const cmsHPROFILE &displayProfile)
 {
     cmsContext context = cmsCreateContext(nullptr, nullptr);
     if (!context) return nullptr;
@@ -23,24 +23,32 @@ cmsHPROFILE getPlaybackProfile(const cspData &csp, const double gamma, const cms
 
         double srcBlack[3];
 
-        cmsCIEXYZ bp_XYZ; // black pt
-        if (!cmsDetectDestinationBlackPoint(&bp_XYZ, displayProfile, INTENT_RELATIVE_COLORIMETRIC, 0)) return nullptr;
+        if (contrast > 0.0)
+        {
+            for (int i = 0; i < 3; ++i)
+                srcBlack[i] = 1.0 / contrast;
+        }
+        else
+        {
+            cmsCIEXYZ bp_XYZ; // black pt
+            if (!cmsDetectDestinationBlackPoint(&bp_XYZ, displayProfile, INTENT_RELATIVE_COLORIMETRIC, 0))
+                return nullptr;
 
-        // XYZ value of the BP -> linear source space
+            // XYZ value of the BP -> linear source space
 
-        cmsToneCurve *linearCurve = cmsBuildGamma(context, 1.0);
-        cmsToneCurve *linearCurves[3] = {linearCurve, linearCurve, linearCurve};
-        cmsHPROFILE revProfile = cmsCreateRGBProfile(&wp_xyY, &prim_xyY, linearCurves);
+            cmsToneCurve *linearCurve = cmsBuildGamma(context, 1.0);
+            cmsToneCurve *linearCurves[3] = {linearCurve, linearCurve, linearCurve};
+            cmsHPROFILE revProfile = cmsCreateRGBProfile(&wp_xyY, &prim_xyY, linearCurves);
 
-        cmsHPROFILE XYZProfile = cmsCreateXYZProfile();
-        cmsHTRANSFORM transform_XYZ_src = cmsCreateTransform(XYZProfile, TYPE_XYZ_DBL, revProfile, TYPE_RGB_DBL, INTENT_RELATIVE_COLORIMETRIC, 0);
-        cmsFreeToneCurve(linearCurve);
-        cmsCloseProfile(revProfile);
-        cmsCloseProfile(XYZProfile);
-        if (!transform_XYZ_src) return nullptr;
-        cmsDoTransform(transform_XYZ_src, &bp_XYZ, srcBlack, 1);
-        cmsDeleteTransform(transform_XYZ_src);
-
+            cmsHPROFILE XYZProfile = cmsCreateXYZProfile();
+            cmsHTRANSFORM transform_XYZ_src = cmsCreateTransform(XYZProfile, TYPE_XYZ_DBL, revProfile, TYPE_RGB_DBL, INTENT_RELATIVE_COLORIMETRIC, 0);
+            cmsFreeToneCurve(linearCurve);
+            cmsCloseProfile(revProfile);
+            cmsCloseProfile(XYZProfile);
+            if (!transform_XYZ_src) return nullptr;
+            cmsDoTransform(transform_XYZ_src, &bp_XYZ, srcBlack, 1);
+            cmsDeleteTransform(transform_XYZ_src);
+        }
         // Build the transfer curve of BT.1886
 
         for (int i = 0; i < 3; ++i)

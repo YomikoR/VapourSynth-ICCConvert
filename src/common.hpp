@@ -60,6 +60,6 @@ const cspData csp_601_625 = {0.3127, 0.3290, 0.64, 0.33, 0.29, 0.6, 0.15, 0.06};
 
 const cspData csp_2020 = {0.3127, 0.3290, 0.708, 0.292, 0.17, 0.797, 0.131, 0.046};
 
-cmsHPROFILE getPlaybackProfile(const cspData &csp, const double gamma, const cmsHPROFILE &displayProfile);
+cmsHPROFILE getPlaybackProfile(const cspData &csp, const double gamma, const double contrast, const cmsHPROFILE &displayProfile);
 
 #endif

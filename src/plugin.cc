@@ -28,6 +28,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin* plugin, const VSPLUGINAPI
         "csp:data:opt;"
         "display_icc:data:opt;"
         "gamma:float:opt;"
+        "contrast:float:opt;"
         "intent:data:opt;"
         "black_point_compensation:int:opt;"
         "clut_size:int:opt;",

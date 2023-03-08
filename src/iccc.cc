@@ -537,20 +537,31 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         return;
     }
 
+    double contrast = vsapi->mapGetFloat(in, "contrast", 0, &err);
+    if (err)
+        contrast = 0.0;
+    else if (contrast < 0.0)
+    {
+        cmsCloseProfile(d->defaultOutputProfile);
+        vsapi->freeNode(d->node);
+        vsapi->mapSetError(out, "iccc: Input contrast value must be positive.");
+        return;
+    }
+
     cmsHPROFILE inputProfile = nullptr;
     bool inputIsSRGB = false;
     const char *srcProfilePath = vsapi->mapGetData(in, "csp", 0, &err);
     if (err || strcmp(srcProfilePath, "709") == 0)
     {
-        inputProfile = getPlaybackProfile(csp_709, gamma, d->defaultOutputProfile);
+        inputProfile = getPlaybackProfile(csp_709, gamma, contrast, d->defaultOutputProfile);
     }
     else if ((strcmp(srcProfilePath, "170m") == 0) || (strcmp(srcProfilePath, "601-525") == 0))
     {
-        inputProfile = getPlaybackProfile(csp_601_525, gamma, d->defaultOutputProfile);
+        inputProfile = getPlaybackProfile(csp_601_525, gamma, contrast, d->defaultOutputProfile);
     }
     else if (strcmp(srcProfilePath, "2020") == 0)
     {
-        inputProfile = getPlaybackProfile(csp_2020, gamma, d->defaultOutputProfile);
+        inputProfile = getPlaybackProfile(csp_2020, gamma, contrast, d->defaultOutputProfile);
     }
     else if (strcmp(srcProfilePath, "srgb") == 0)
     {

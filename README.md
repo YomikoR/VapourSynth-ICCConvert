@@ -74,6 +74,7 @@ iccc.Playback(clip,
   csp="709", 
   display_icc=<from_system>, 
   gamma=None, 
+  contrast=<from_display_icc>,
   intent="relative", 
   black_point_compensation=<not_sRGB>, 
   clut_size=49)
@@ -86,6 +87,8 @@ Currently supported `csp` options are the following:
 - `"170m"` for SD (NTSC)
 
 For viewing images, instead, you may also set `csp` as `"srgb"`.
+
+The `contrast` value will be used to override the inferred contrast from the provided ICC profile. For example, the sRGB profile provided by Windows seems to have zero black point, which suggests inf contrast, so that the BT.1886 EOTF is effectively equivalent to gamma 2.4, which is usually not expected in practical playback. In this case, setting an approximated contrast value from your monitor may be a better idea.
 
 This function ignores embedded ICC profiles in frame properties.
 
