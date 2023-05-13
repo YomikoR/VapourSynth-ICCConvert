@@ -492,6 +492,10 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     int err;
 
+    bool inverse = !!vsapi->mapGetInt(in, "inverse", 0, &err);
+    if (err)
+        inverse = false;
+
     const char *dstProfile = vsapi->mapGetData(in, "display_icc", 0, &err);
     if (err || !dstProfile)
     {
@@ -509,19 +513,33 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         vsapi->mapSetError(out, "iccc: Input display profile seems invalid.");
         return;
     }
-    else if ((cmsGetDeviceClass(d->defaultOutputProfile) != cmsSigDisplayClass) && (cmsGetDeviceClass(d->defaultOutputProfile) != cmsSigOutputClass))
-    {
-        cmsCloseProfile(d->defaultOutputProfile);
-        vsapi->freeNode(d->node);
-        vsapi->mapSetError(out, "iccc: Input display profile must have 'display' ('mntr') or 'output' ('prtr') device class.");
-        return;
-    }
     else if (cmsGetColorSpace(d->defaultOutputProfile) != cmsSigRgbData)
     {
         cmsCloseProfile(d->defaultOutputProfile);
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Input display profile must be for RGB colorspace.");
         return;
+    }
+    else
+    {
+        auto deviceClass = cmsGetDeviceClass(d->defaultOutputProfile);
+        if (deviceClass != cmsSigDisplayClass)
+        {
+            if (inverse && deviceClass != cmsSigInputClass)
+            {
+                cmsCloseProfile(d->defaultOutputProfile);
+                vsapi->freeNode(d->node);
+                vsapi->mapSetError(out, "iccc: Display profile must have 'display' ('mntr') or 'input' ('scnr') device class in inverse mode.");
+                return;
+            }
+            else if (!inverse && deviceClass != cmsSigOutputClass)
+            {
+                cmsCloseProfile(d->defaultOutputProfile);
+                vsapi->freeNode(d->node);
+                vsapi->mapSetError(out, "iccc: Display profile must have 'display' ('mntr') or 'output' ('prtr') device class.");
+                return;
+            }
+        }
     }
 
     double gamma = vsapi->mapGetFloat(in, "gamma", 0, &err);
@@ -625,7 +643,10 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     d->transformFlag |= cmsFLAGS_GRIDPOINTS(clutSize);
 
-    d->defaultTransform = cmsCreateTransform(inputProfile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, d->defaultIntent, d->transformFlag);
+    if (inverse)
+        d->defaultTransform = cmsCreateTransform(d->defaultOutputProfile, d->lcmsDataType, inputProfile, d->lcmsDataType, d->defaultIntent, d->transformFlag);
+    else
+        d->defaultTransform = cmsCreateTransform(inputProfile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, d->defaultIntent, d->transformFlag);
     if (!d->defaultTransform)
     {
         cmsCloseProfile(d->defaultOutputProfile);

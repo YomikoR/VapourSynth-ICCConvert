@@ -31,7 +31,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin* plugin, const VSPLUGINAPI
         "contrast:float:opt;"
         "intent:data:opt;"
         "black_point_compensation:int:opt;"
-        "clut_size:int:opt;",
+        "clut_size:int:opt;"
+        "inverse:int:opt;",
         "clip:vnode;",
         iccpCreate, nullptr, plugin
     );

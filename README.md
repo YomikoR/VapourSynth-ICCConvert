@@ -77,7 +77,8 @@ iccc.Playback(clip,
   contrast=<from_display_icc>,
   intent="relative", 
   black_point_compensation=<not_sRGB>, 
-  clut_size=49)
+  clut_size=49,
+  inverse=False)
 ```
 Video playback with BT.1886 configuration, or overridden by a given float value of `gamma` (e.g. 2.4 for OLED monitors). For SDR content this should have very similar behavior as the [mpv player](https://mpv.io/).
 
@@ -89,6 +90,8 @@ Currently supported `csp` options are the following:
 For viewing images, instead, you may also set `csp` as `"srgb"`.
 
 The `contrast` value will be used to override the inferred contrast from the provided ICC profile. For example, the sRGB profile provided by Windows seems to have zero black point, which suggests inf contrast, so that the BT.1886 EOTF is effectively equivalent to gamma 2.4, which is usually not expected in practical playback. In this case, setting an approximated contrast value from your monitor may be a better idea.
+
+The experimental `inverse` option allows you to take an inverse transform.
 
 This function ignores embedded ICC profiles in frame properties.
 
