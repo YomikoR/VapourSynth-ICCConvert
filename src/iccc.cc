@@ -763,3 +763,101 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     vsapi->createVideoFilter(out, "Playback", &d->vi, icccGetFrame, icccFree, fmParallel, depReq.data(), depReq.size(), d.get(), core);
     d.release();
 }
+
+struct tagData
+{
+    VSNode *node;
+    std::vector<char> profileData;
+    VSColorPrimaries primaries = VSC_PRIMARIES_UNSPECIFIED;
+    VSTransferCharacteristics transfer = VSC_TRANSFER_UNSPECIFIED;
+};
+
+static const VSFrame *VS_CC tagGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
+{
+    tagData *d = reinterpret_cast<tagData *>(instanceData);
+
+    if (activationReason == arInitial)
+    {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    }
+    else if (activationReason == arAllFramesReady)
+    {
+        const VSFrame *frame = vsapi->getFrameFilter(n, d->node, frameCtx);
+
+        VSFrame *dstFrame = vsapi->copyFrame(frame, core);
+        VSMap *map = vsapi->getFramePropertiesRW(dstFrame);
+        vsapi->freeFrame(frame);
+
+        vsapi->mapSetData(map, "ICCProfile", d->profileData.data(), d->profileData.size(), dtBinary, maReplace);
+        vsapi->mapSetInt(map, "_Primaries", d->primaries, maReplace);
+        vsapi->mapSetInt(map, "_Transfer", d->transfer, maReplace);
+        return dstFrame;
+    }
+    return nullptr;
+}
+
+static void VS_CC tagFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
+{
+    tagData *d = reinterpret_cast<tagData *>(instanceData);
+    vsapi->freeNode(d->node);
+    d->profileData.clear();
+    delete d;
+}
+
+void VS_CC tagCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
+{
+    std::unique_ptr<tagData> d(new tagData());
+
+    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
+
+    int err;
+    const char *iccFile = vsapi->mapGetData(in, "icc", 0, &err);
+    if (err)
+    {
+        vsapi->freeNode(d->node);
+        vsapi->mapSetError(out, "iccc: Input ICC must be provided.");
+        return;
+    }
+    cmsHPROFILE profile = nullptr;
+    if (!(profile = cmsOpenProfileFromFile(iccFile, "r")))
+    {
+        PresetProfile pp = createPresetProfile(iccFile);
+        if (pp.profile)
+        {
+            profile = pp.profile;
+            d->primaries = pp.primaries;
+            d->transfer = pp.transfer;
+        }
+        else
+        {
+            vsapi->freeNode(d->node);
+            vsapi->mapSetError(out, "iccc: Input ICC seems invalid.");
+            return;
+        }
+    }
+
+    cmsUInt32Number size = 0;
+    cmsSaveProfileToMem(profile, nullptr, &size);
+    if (size <= 0)
+    {
+        vsapi->freeNode(d->node);
+        vsapi->mapSetError(out, "iccc: Input ICC has no content. Corrupted?");
+        return;
+    }
+    d->profileData.resize(size);
+    if (!cmsSaveProfileToMem(profile, d->profileData.data(), &size))
+    {
+        vsapi->freeNode(d->node);
+        vsapi->mapSetError(out, "iccc: Error occured when loading input ICC.");
+        return;
+    }
+    cmsCloseProfile(profile);
+
+    std::vector<VSFilterDependency> depReq =
+    {
+        {d->node, rpStrictSpatial}
+    };
+
+    vsapi->createVideoFilter(out, "Tag", vsapi->getVideoInfo(d->node), tagGetFrame, tagFree, fmParallel, depReq.data(), depReq.size(), d.get(), core);
+    d.release();
+}

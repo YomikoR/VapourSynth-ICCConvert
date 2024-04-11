@@ -2,6 +2,7 @@
 
 extern void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 extern void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
+extern void VS_CC tagCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin* plugin, const VSPLUGINAPI* vspapi)
 {
@@ -35,5 +36,12 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin* plugin, const VSPLUGINAPI
         "inverse:int:opt;",
         "clip:vnode;",
         iccpCreate, nullptr, plugin
+    );
+
+    vspapi->registerFunction("Tag",
+        "clip:vnode;"
+        "icc:data;",
+        "clip:vnode;",
+        tagCreate, nullptr, plugin
     );
 }
