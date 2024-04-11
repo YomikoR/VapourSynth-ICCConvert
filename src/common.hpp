@@ -50,6 +50,31 @@ struct cspData
     cmsFloat64Number yg;
     cmsFloat64Number xb;
     cmsFloat64Number yb;
+
+    cmsCIExyY white() const
+    {
+        return {xw, yw, 1.0};
+    }
+
+    cmsCIExyY red() const
+    {
+        return {xr, yr, 1.0};
+    }
+
+    cmsCIExyY green() const
+    {
+        return {xg, yg, 1.0};
+    }
+
+    cmsCIExyY blue() const
+    {
+        return {xb, yb, 1.0};
+    }
+
+    cmsCIExyYTRIPLE prim() const
+    {
+        return {red(), green(), blue()};
+    }
 };
 
 const cspData csp_709 = {0.3127, 0.3290, 0.64, 0.33, 0.3, 0.6, 0.15, 0.06};

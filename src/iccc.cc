@@ -1,8 +1,12 @@
 #include "common.hpp"
 #include "libp2p/p2p_api.h"
+#include "vapoursynth/VSConstants4.h"
 #include <unordered_map>
 #include <mutex>
 #include <memory>
+
+constexpr double REC709_ALPHA = 1.09929682680944;
+constexpr double REC709_BETA = 0.018053968510807;
 
 // Use it for hashing
 struct inputICCData
@@ -51,6 +55,8 @@ struct icccData
     std::unordered_map<inputICCData, cmsHTRANSFORM, inputICCHashFunction> transformMap;
     std::mutex mutex;
     // Defaults
+    VSColorPrimaries defaultPrimaries = VSC_PRIMARIES_UNSPECIFIED;
+    VSTransferCharacteristics defaultTransfer = VSC_TRANSFER_UNSPECIFIED;
     cmsHPROFILE defaultOutputProfile;
     cmsHTRANSFORM defaultTransform; // This one is a copy from the map, don't free it directly
     cmsUInt32Number defaultIntent;
@@ -99,6 +105,61 @@ static cmsHTRANSFORM getTransform(const inputICCData &ind, icccData *d)
     else return found->second;
 }
 
+struct PresetProfile
+{
+    cmsHPROFILE profile = nullptr;
+    VSColorPrimaries primaries = VSC_PRIMARIES_UNSPECIFIED;
+    VSTransferCharacteristics transfer = VSC_TRANSFER_UNSPECIFIED;
+};
+
+static PresetProfile createPresetProfile(const char *name)
+{
+    PresetProfile pp;
+    if (strcmp(name, "srgb") == 0 || strcmp(name, "sRGB") == 0)
+    {
+        pp.primaries = VSC_PRIMARIES_BT709;
+        pp.transfer = VSC_TRANSFER_IEC_61966_2_1;
+        pp.profile = cmsCreate_sRGBProfile();
+    }
+    else if (strcmp(name, "709") == 0)
+    {
+        pp.primaries = VSC_PRIMARIES_BT709;
+        pp.transfer = VSC_TRANSFER_BT709;
+        cmsCIExyY wp = csp_709.white();
+        cmsCIExyYTRIPLE prim = csp_709.prim();
+        cmsFloat64Number params[5] = {1.0 / 0.45, 1.0 / REC709_ALPHA, 1.0 - 1.0 / REC709_ALPHA, 1.0 / 4.5, REC709_BETA * 4.5};
+        cmsToneCurve *curve = cmsBuildParametricToneCurve(nullptr, 4, params);
+        cmsToneCurve *curves[3] = {curve, curve, curve};
+        pp.profile = cmsCreateRGBProfile(&wp, &prim, curves);
+        cmsFreeToneCurve(curve);
+    }
+    else if (strcmp(name, "170m") == 0 || strcmp(name, "170M") == 0 || strcmp(name, "601-525") == 0)
+    {
+        pp.primaries = VSC_PRIMARIES_ST170_M;
+        pp.transfer = VSC_TRANSFER_BT601;
+        cmsCIExyY wp = csp_601_525.white();
+        cmsCIExyYTRIPLE prim = csp_601_525.prim();
+        cmsFloat64Number params[5] = {1.0 / 0.45, 1.0 / REC709_ALPHA, 1.0 - 1.0 / REC709_ALPHA, 1.0 / 4.5, REC709_BETA * 4.5};
+        cmsToneCurve *curve = cmsBuildParametricToneCurve(nullptr, 4, params);
+        cmsToneCurve *curves[3] = {curve, curve, curve};
+        pp.profile = cmsCreateRGBProfile(&wp, &prim, curves);
+        cmsFreeToneCurve(curve);
+    }
+    else if (strcmp(name, "2020") == 0)
+    {
+        pp.primaries = VSC_PRIMARIES_BT2020;
+        pp.transfer = VSC_TRANSFER_BT2020_10;
+        cmsCIExyY wp = csp_2020.white();
+        cmsCIExyYTRIPLE prim = csp_2020.prim();
+        cmsFloat64Number params[5] = {1.0 / 0.45, 1.0 / REC709_ALPHA, 1.0 - 1.0 / REC709_ALPHA, 1.0 / 4.5, REC709_BETA * 4.5};
+        cmsToneCurve *curve = cmsBuildParametricToneCurve(nullptr, 4, params);
+        cmsToneCurve *curves[3] = {curve, curve, curve};
+        pp.profile = cmsCreateRGBProfile(&wp, &prim, curves);
+        cmsFreeToneCurve(curve);
+    }
+    return pp;
+}
+
 static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
 {
     icccData *d = reinterpret_cast<icccData *>(instanceData);
@@ -115,12 +176,12 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
         int stride = vsapi->getStride(frame, 0);
 
         VSFrame *dstFrame = vsapi->newVideoFrame(&d->vi.format, width, height, frame, core);
+        VSMap *map = vsapi->getFramePropertiesRW(dstFrame);
 
         // Create or find transform
         cmsHTRANSFORM transform = d->defaultTransform;
         if (d->preferProps)
         {
-            VSMap *map = vsapi->getFramePropertiesRW(dstFrame);
             int err;
             int iccLength = vsapi->mapGetDataSize(map, "ICCProfile", 0, &err);
             if (!err && iccLength > 0)
@@ -163,7 +224,6 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
                     vsapi->setFilterError("iccc: Unable to read embedded ICC profile. Corrupted?", frameCtx);
                     return nullptr;
                 }
-                vsapi->mapDeleteKey(map, "ICCProfile");
             }
         }
 
@@ -217,6 +277,12 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
 
         vsh::vsh_aligned_free(packed);
         vsapi->freeFrame(frame);
+
+        // Set frame props
+        vsapi->mapSetInt(map, "_Primaries", d->defaultPrimaries, maReplace);
+        vsapi->mapSetInt(map, "_Transfer", d->defaultTransfer, maReplace);
+        vsapi->mapDeleteKey(map, "ICCProfile");
+
         return dstFrame;
     }
     return nullptr;
@@ -265,25 +331,29 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     const char *srcProfilePath = vsapi->mapGetData(in, "input_icc", 0, &err);
     if (err || !srcProfilePath)
     {
-        srcProfilePath = vsapi->mapGetData(in, "simulation_icc", 0, &err);
-    }
-    if (err || !srcProfilePath)
-    {
         inputProfile = nullptr;
     }
     else if (!(inputProfile = cmsOpenProfileFromFile(srcProfilePath, "r")))
     {
-        vsapi->freeNode(d->node);
-        vsapi->mapSetError(out, "iccc: Input profile seems invalid.");
-        return;
+        PresetProfile pp = createPresetProfile(srcProfilePath);
+        if (pp.profile)
+        {
+            inputProfile = pp.profile;
+        }
+        else
+        {
+            vsapi->freeNode(d->node);
+            vsapi->mapSetError(out, "iccc: Input profile seems invalid.");
+            return;
+        }
     }
-    else if ((cmsGetDeviceClass(inputProfile) != cmsSigDisplayClass) && (cmsGetDeviceClass(inputProfile) != cmsSigInputClass))
+    if (inputProfile && (cmsGetDeviceClass(inputProfile) != cmsSigDisplayClass) && (cmsGetDeviceClass(inputProfile) != cmsSigInputClass))
     {
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Input profile must have 'display' ('mntr') or 'input' ('scnr') device class.");
         return;
     }
-    else if (cmsGetColorSpace(inputProfile) != cmsSigRgbData)
+    if (inputProfile && cmsGetColorSpace(inputProfile) != cmsSigRgbData)
     {
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Input profile must be for RGB colorspace.");
@@ -310,12 +380,22 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     else if (!(d->defaultOutputProfile = cmsOpenProfileFromFile(dstProfile, "r")))
     {
-        inputProfile && cmsCloseProfile(inputProfile);
-        vsapi->freeNode(d->node);
-        vsapi->mapSetError(out, "iccc: Display (output) profile seems invalid.");
-        return;
+        PresetProfile pp = createPresetProfile(dstProfile);
+        if (pp.profile)
+        {
+            d->defaultOutputProfile = pp.profile;
+            d->defaultPrimaries = pp.primaries;
+            d->defaultTransfer = pp.transfer;
+        }
+        else
+        {
+            inputProfile && cmsCloseProfile(inputProfile);
+            vsapi->freeNode(d->node);
+            vsapi->mapSetError(out, "iccc: Display (output) profile seems invalid.");
+            return;
+        }
     }
-    else if ((cmsGetDeviceClass(d->defaultOutputProfile) != cmsSigDisplayClass) && (cmsGetDeviceClass(d->defaultOutputProfile) != cmsSigOutputClass))
+    if ((cmsGetDeviceClass(d->defaultOutputProfile) != cmsSigDisplayClass) && (cmsGetDeviceClass(d->defaultOutputProfile) != cmsSigOutputClass))
     {
         cmsCloseProfile(d->defaultOutputProfile);
         inputProfile && cmsCloseProfile(inputProfile);
@@ -323,7 +403,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         vsapi->mapSetError(out, "iccc: Display (output) profile must have 'display' ('mntr') or 'output' ('prtr') device class.");
         return;
     }
-    else if (cmsGetColorSpace(d->defaultOutputProfile) != cmsSigRgbData)
+    if (cmsGetColorSpace(d->defaultOutputProfile) != cmsSigRgbData)
     {
         cmsCloseProfile(d->defaultOutputProfile);
         inputProfile && cmsCloseProfile(inputProfile);
@@ -357,13 +437,19 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     {
         if (!(d->proofingProfile = cmsOpenProfileFromFile(proofingProfilePath, "r")))
         {
-            cmsCloseProfile(d->defaultOutputProfile);
-            inputProfile && cmsCloseProfile(inputProfile);
-            vsapi->freeNode(d->node);
-            vsapi->mapSetError(out, "iccc: Proofing profile seems invalid.");
-            return;
+            PresetProfile pp = createPresetProfile(proofingProfilePath);
+            if (pp.profile)
+                d->proofingProfile = pp.profile;
+            else
+            {
+                cmsCloseProfile(d->defaultOutputProfile);
+                inputProfile && cmsCloseProfile(inputProfile);
+                vsapi->freeNode(d->node);
+                vsapi->mapSetError(out, "iccc: Proofing profile seems invalid.");
+                return;
+            }
         }
-        else if (cmsGetDeviceClass(d->proofingProfile) != cmsSigDisplayClass || cmsGetDeviceClass(d->proofingProfile) != cmsSigOutputClass)
+        if (cmsGetDeviceClass(d->proofingProfile) != cmsSigDisplayClass || cmsGetDeviceClass(d->proofingProfile) != cmsSigOutputClass)
         {
             cmsCloseProfile(d->defaultOutputProfile);
             inputProfile && cmsCloseProfile(inputProfile);
@@ -509,36 +595,44 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     else if (!(d->defaultOutputProfile = cmsOpenProfileFromFile(dstProfile, "r")))
     {
-        vsapi->freeNode(d->node);
-        vsapi->mapSetError(out, "iccc: Input display profile seems invalid.");
-        return;
+        PresetProfile pp = createPresetProfile(dstProfile);
+        if (pp.profile)
+        {
+            d->defaultOutputProfile = pp.profile;
+            d->defaultPrimaries = pp.primaries;
+            d->defaultTransfer = pp.transfer;
+        }
+        else
+        {
+            vsapi->freeNode(d->node);
+            vsapi->mapSetError(out, "iccc: Input display profile seems invalid.");
+            return;
+        }
     }
-    else if (cmsGetColorSpace(d->defaultOutputProfile) != cmsSigRgbData)
+    if (cmsGetColorSpace(d->defaultOutputProfile) != cmsSigRgbData)
     {
         cmsCloseProfile(d->defaultOutputProfile);
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Input display profile must be for RGB colorspace.");
         return;
     }
-    else
+
+    cmsProfileClassSignature deviceClass = cmsGetDeviceClass(d->defaultOutputProfile);
+    if (deviceClass != cmsSigDisplayClass)
     {
-        auto deviceClass = cmsGetDeviceClass(d->defaultOutputProfile);
-        if (deviceClass != cmsSigDisplayClass)
+        if (inverse && deviceClass != cmsSigInputClass)
         {
-            if (inverse && deviceClass != cmsSigInputClass)
-            {
-                cmsCloseProfile(d->defaultOutputProfile);
-                vsapi->freeNode(d->node);
-                vsapi->mapSetError(out, "iccc: Display profile must have 'display' ('mntr') or 'input' ('scnr') device class in inverse mode.");
-                return;
-            }
-            else if (!inverse && deviceClass != cmsSigOutputClass)
-            {
-                cmsCloseProfile(d->defaultOutputProfile);
-                vsapi->freeNode(d->node);
-                vsapi->mapSetError(out, "iccc: Display profile must have 'display' ('mntr') or 'output' ('prtr') device class.");
-                return;
-            }
+            cmsCloseProfile(d->defaultOutputProfile);
+            vsapi->freeNode(d->node);
+            vsapi->mapSetError(out, "iccc: Display profile must have 'display' ('mntr') or 'input' ('scnr') device class in inverse mode.");
+            return;
+        }
+        else if (!inverse && deviceClass != cmsSigOutputClass)
+        {
+            cmsCloseProfile(d->defaultOutputProfile);
+            vsapi->freeNode(d->node);
+            vsapi->mapSetError(out, "iccc: Display profile must have 'display' ('mntr') or 'output' ('prtr') device class.");
+            return;
         }
     }
 
@@ -567,13 +661,13 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
 
     cmsHPROFILE inputProfile = nullptr;
-    bool inputIsSRGB = false;
+    bool inputIsStatic = false;
     const char *srcProfilePath = vsapi->mapGetData(in, "csp", 0, &err);
     if (err || strcmp(srcProfilePath, "709") == 0)
     {
         inputProfile = getPlaybackProfile(csp_709, gamma, contrast, d->defaultOutputProfile);
     }
-    else if ((strcmp(srcProfilePath, "170m") == 0) || (strcmp(srcProfilePath, "601-525") == 0))
+    else if ((strcmp(srcProfilePath, "170m") == 0) || (strcmp(srcProfilePath, "170M") == 0) || (strcmp(srcProfilePath, "601-525") == 0))
     {
         inputProfile = getPlaybackProfile(csp_601_525, gamma, contrast, d->defaultOutputProfile);
     }
@@ -581,10 +675,10 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     {
         inputProfile = getPlaybackProfile(csp_2020, gamma, contrast, d->defaultOutputProfile);
     }
-    else if (strcmp(srcProfilePath, "srgb") == 0)
+    else if (strcmp(srcProfilePath, "srgb") == 0 || strcmp(srcProfilePath, "sRGB") == 0)
     {
         inputProfile = cmsCreate_sRGBProfile();
-        inputIsSRGB = true;
+        inputIsStatic = true;
     }
     else
     {
@@ -623,10 +717,9 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     bool blackPointCompensation = vsapi->mapGetInt(in, "black_point_compensation", 0, &err);
     if (err)
-    {
-        blackPointCompensation = !inputIsSRGB;
-    }
-    if (blackPointCompensation) d->transformFlag |= cmsFLAGS_BLACKPOINTCOMPENSATION;
+        blackPointCompensation = !inputIsStatic;
+    if (blackPointCompensation)
+        d->transformFlag |= cmsFLAGS_BLACKPOINTCOMPENSATION;
 
     int clutSize = vsh::int64ToIntS(vsapi->mapGetInt(in, "clut_size", 0, &err));
     if (err) clutSize = 1;
