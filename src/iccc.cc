@@ -679,7 +679,6 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
 
     cmsHPROFILE inputProfile = nullptr;
-    bool inputIsStatic = false;
     const char *srcProfilePath = vsapi->mapGetData(in, "csp", 0, &err);
     if (err || strcmp(srcProfilePath, "709") == 0)
     {
@@ -707,16 +706,6 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
             d->defaultPrimaries = VSC_PRIMARIES_BT2020;
             d->defaultTransfer = VSC_TRANSFER_BT2020_10;
         }
-    }
-    else if (strcmp(srcProfilePath, "srgb") == 0 || strcmp(srcProfilePath, "sRGB") == 0)
-    {
-        inputProfile = cmsCreate_sRGBProfile();
-        if (inverse)
-        {
-            d->defaultPrimaries = VSC_PRIMARIES_BT709;
-            d->defaultTransfer = VSC_TRANSFER_IEC_61966_2_1;
-        }
-        inputIsStatic = true;
     }
     else
     {
@@ -755,7 +744,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     bool blackPointCompensation = vsapi->mapGetInt(in, "black_point_compensation", 0, &err);
     if (err)
-        blackPointCompensation = !inputIsStatic;
+        blackPointCompensation = true;
     if (blackPointCompensation)
         d->transformFlag |= cmsFLAGS_BLACKPOINTCOMPENSATION;
 
