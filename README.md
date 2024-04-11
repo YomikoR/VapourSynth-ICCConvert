@@ -6,31 +6,35 @@ Little CMS based ICC profile simulation for VapourSynth.
 
 ## Usage
 
-```python
-iccc.Convert(clip, 
-  input_icc=<from_frame_properties>, 
-  display_icc=<from_system>, 
-  intent=<from_input_icc>, 
-  proofing_icc=None, 
-  proofing_intent=<from_proofing_icc>, 
-  gamut_warning=False, 
-  gamut_warning_color=[65535, 0, 65535], 
-  black_point_compensation=False, 
-  clut_size=49, 
-  prefer_props=True)
-```
+### Convert
+
 Color profile conversion and soft proofing.
 
+```python
+iccc.Convert(clip,
+  input_icc: str = <from_frame_properties>,
+  display_icc: str = <from_system>,
+  intent: str = <from_input_icc>,
+  proofing_icc: str = None,
+  proofing_intent: str = <from_proofing_icc>,
+  gamut_warning: bool = False,
+  gamut_warning_color: uint16[] = [65535, 0, 65535],
+  black_point_compensation: bool = False,
+  clut_size: int = 49,
+  prefer_props: bool = True)
+```
 - The format of input `clip` must be either `RGB24` or `RGB48`. The output has the same format.
 
 - `input_icc` is the path to the ICC profile of the clip (input profile for conversion).
 
-  When `prefer_props` is enabled, it is an *optional* fallback value for embedded ICC profiles read from frame properties.
+  - When `prefer_props` is enabled, it is an *optional* fallback value for embedded ICC profiles read from frame properties.
+  - Can also set values `srgb`, `170m`, `709` or `2020` for a preset colorspace (will first attempt to treat as file name).
 
 - `display_icc` is the path to the ICC profile for the output, e.g. your monitor (output profile for conversion).
 
-  Auto detection features have been implemented on a few platforms.
+  - Auto detection features have been implemented on a few platforms.
   See [OS Dependent Notes](#os-dependent-notes). However, it's strongly recommended to manually specify the ICC profile for production purpose.
+  - Can also set values `srgb`, `170m`, `709` or `2020` for a preset colorspace (will first attempt to treat as file name).
 
  - `intent` refers to the ICC rendering intent for conversion from the input clip, see [this link](https://helpx.adobe.com/photoshop-elements/kb/color-management-settings-best-print.html#main-pars_header_1). Possible options are
    - "perceptual" for Perceptual
@@ -42,10 +46,10 @@ Color profile conversion and soft proofing.
 
     Not all rendering intents are supported by all display profiles. If the profile is not providing sufficient information for selected intent, Little CMS has the following fallback rules:
 
-    - Perceptual: the default intent of the (output) profile.
-    - Relative Colorimetric: perceptual.
-    - Saturation: perceptual.
-    - Absolute Colorimetric: relative colorimetric intent, with undoing of chromatic adaptation.
+    - Perceptual -> the default intent of the (output) profile.
+    - Relative Colorimetric -> perceptual.
+    - Saturation -> perceptual.
+    - Absolute Colorimetric -> relative colorimetric intent, with undoing of chromatic adaptation.
 
  - `proofing_icc` is the path to the *optional* ICC profile for soft proofing, e.g. another monitor on which we are interested in the rendering. When a valid ICC profile is provided, the transform is taken in the soft proofing mode. When leaving it as the default `None`, a straightforward ICC transform is taken instead.
  
@@ -67,33 +71,46 @@ Color profile conversion and soft proofing.
 
  - `prefer_props` is the flag for reading embedded ICC profiles from the frame property `ICCProfile`. Default on. The rendering intent from the header of the embedded profile will also override the above `intent`.
 
-    ICC profiles are internally hashed to reuse exising ICC transform instances, so duplication of embedded ICC profiles from the input clip won't cause a big performance loss.
+    ICC profiles are internally hashed to reuse exising ICC transform instances, so duplication of embedded ICC profiles from the input frames won't cause a big performance loss.
+
+### Playback
+
+Video playback with BT.1886 configuration or with gamma curve.
+For SDR content this should have very similar behavior as the [mpv player](https://mpv.io/) with `vo=gpu`.
 
 ```python
-iccc.Playback(clip, 
-  csp="709", 
-  display_icc=<from_system>, 
-  gamma=None, 
-  contrast=<from_display_icc>,
-  intent="relative", 
-  black_point_compensation=<not_sRGB>, 
-  clut_size=49,
-  inverse=False)
+iccc.Playback(clip,
+  csp: str = "709",
+  display_icc: str = <from_system>,
+  gamma: float = None,
+  contrast: float = <from_display_icc>,
+  intent: str = "relative",
+  black_point_compensation: bool = True,
+  clut_size: int = 49,
+  inverse: bool = False)
 ```
-Video playback with BT.1886 configuration, or overridden by a given float value of `gamma` (e.g. 2.4 for OLED monitors). For SDR content this should have very similar behavior as the [mpv player](https://mpv.io/).
+A gamma curve is used if `gamma` is set.
+Otherwise BT.1886.
 
 Currently supported `csp` options are the following:
 - `"709"` for HD
 - `"2020"` for UHD (SDR)
 - `"170m"` for SD (NTSC)
 
-For viewing images, instead, you may also set `csp` as `"srgb"`.
-
 The `contrast` value will be used to override the inferred contrast from the provided ICC profile. For example, the sRGB profile provided by Windows seems to have zero black point, which suggests inf contrast, so that the BT.1886 EOTF is effectively equivalent to gamma 2.4, which is usually not expected in practical playback. In this case, setting an approximated contrast value from your monitor may be a better idea.
 
 The experimental `inverse` option allows you to take an inverse transform.
 
 This function ignores embedded ICC profiles in frame properties.
+
+### Tag
+Embed given ICC profile to frame properties.
+```python
+iccc.Tag(clip, icc: str)
+```
+The function loads profile `icc`, and saves it to `ICCProfile` frame properties.
+There's no format check on the input clip.
+Can also set `icc` as values `srgb`, `170m`, `709` or `2020` for a preset colorspace (will first attempt to treat as file name).
 
 ---
 
