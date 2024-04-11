@@ -58,6 +58,7 @@ struct icccData
     VSColorPrimaries defaultPrimaries = VSC_PRIMARIES_UNSPECIFIED;
     VSTransferCharacteristics defaultTransfer = VSC_TRANSFER_UNSPECIFIED;
     cmsHPROFILE defaultOutputProfile;
+    std::vector<char> defaultOutputProfileData;
     cmsHTRANSFORM defaultTransform; // This one is a copy from the map, don't free it directly
     cmsUInt32Number defaultIntent;
     cmsUInt32Number transformFlag;
@@ -72,6 +73,7 @@ struct icccData
     void clear()
     {
         if (defaultOutputProfile) cmsCloseProfile(defaultOutputProfile);
+        defaultOutputProfileData.clear();
         for (auto pair : transformMap)
         {
             if (pair.second) cmsDeleteTransform(pair.second);
@@ -281,7 +283,8 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
         // Set frame props
         vsapi->mapSetInt(map, "_Primaries", d->defaultPrimaries, maReplace);
         vsapi->mapSetInt(map, "_Transfer", d->defaultTransfer, maReplace);
-        vsapi->mapDeleteKey(map, "ICCProfile");
+        if (d->defaultOutputProfileData.size() > 0)
+            vsapi->mapSetData(map, "ICCProfile", d->defaultOutputProfileData.data(), d->defaultOutputProfileData.size(), dtBinary, maReplace);
 
         return dstFrame;
     }
@@ -410,6 +413,21 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         vsapi->freeNode(d->node);
         vsapi->mapSetError(out, "iccc: Display profile must be for RGB colorspace.");
         return;
+    }
+
+    cmsUInt32Number outputProfileSize = 0;
+    cmsSaveProfileToMem(d->defaultOutputProfile, nullptr, &outputProfileSize);
+    if (outputProfileSize > 0)
+    {
+        d->defaultOutputProfileData.resize(outputProfileSize);
+        if(!cmsSaveProfileToMem(d->defaultOutputProfile, d->defaultOutputProfileData.data(), &outputProfileSize))
+        {
+            d->defaultOutputProfileData.clear();
+        }
+    }
+    if (outputProfileSize <= 0 || d->defaultOutputProfileData.size() == 0)
+    {
+        vsapi->logMessage(mtWarning, "iccc: Won't set ICC frame props.", core);
     }
 
     const char *intentString = vsapi->mapGetData(in, "intent", 0, &err);
@@ -599,8 +617,8 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         if (pp.profile)
         {
             d->defaultOutputProfile = pp.profile;
-            d->defaultPrimaries = pp.primaries;
-            d->defaultTransfer = pp.transfer;
+            if (!inverse)
+                d->defaultPrimaries = pp.primaries;
         }
         else
         {
@@ -666,18 +684,38 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     if (err || strcmp(srcProfilePath, "709") == 0)
     {
         inputProfile = getPlaybackProfile(csp_709, gamma, contrast, d->defaultOutputProfile);
+        if (inverse)
+        {
+            d->defaultPrimaries = VSC_PRIMARIES_BT709;
+            d->defaultTransfer = VSC_TRANSFER_BT709;
+        }
     }
     else if ((strcmp(srcProfilePath, "170m") == 0) || (strcmp(srcProfilePath, "170M") == 0) || (strcmp(srcProfilePath, "601-525") == 0))
     {
         inputProfile = getPlaybackProfile(csp_601_525, gamma, contrast, d->defaultOutputProfile);
+        if (inverse)
+        {
+            d->defaultPrimaries = VSC_PRIMARIES_ST170_M;
+            d->defaultTransfer = VSC_TRANSFER_BT601;
+        }
     }
     else if (strcmp(srcProfilePath, "2020") == 0)
     {
         inputProfile = getPlaybackProfile(csp_2020, gamma, contrast, d->defaultOutputProfile);
+        if (inverse)
+        {
+            d->defaultPrimaries = VSC_PRIMARIES_BT2020;
+            d->defaultTransfer = VSC_TRANSFER_BT2020_10;
+        }
     }
     else if (strcmp(srcProfilePath, "srgb") == 0 || strcmp(srcProfilePath, "sRGB") == 0)
     {
         inputProfile = cmsCreate_sRGBProfile();
+        if (inverse)
+        {
+            d->defaultPrimaries = VSC_PRIMARIES_BT709;
+            d->defaultTransfer = VSC_TRANSFER_IEC_61966_2_1;
+        }
         inputIsStatic = true;
     }
     else
@@ -737,9 +775,42 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     d->transformFlag |= cmsFLAGS_GRIDPOINTS(clutSize);
 
     if (inverse)
+    {
         d->defaultTransform = cmsCreateTransform(d->defaultOutputProfile, d->lcmsDataType, inputProfile, d->lcmsDataType, d->defaultIntent, d->transformFlag);
+
+        cmsUInt32Number outputProfileSize = 0;
+        cmsSaveProfileToMem(inputProfile, nullptr, &outputProfileSize);
+        if (outputProfileSize > 0)
+        {
+            d->defaultOutputProfileData.resize(outputProfileSize);
+            if(!cmsSaveProfileToMem(inputProfile, d->defaultOutputProfileData.data(), &outputProfileSize))
+            {
+                d->defaultOutputProfileData.clear();
+            }
+        }
+        if (outputProfileSize <= 0 || d->defaultOutputProfileData.size() == 0)
+        {
+            vsapi->logMessage(mtWarning, "iccc: Won't set ICC frame props.", core);
+        }
+    }
     else
+    {
         d->defaultTransform = cmsCreateTransform(inputProfile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, d->defaultIntent, d->transformFlag);
+        cmsUInt32Number outputProfileSize = 0;
+        cmsSaveProfileToMem(d->defaultOutputProfile, nullptr, &outputProfileSize);
+        if (outputProfileSize > 0)
+        {
+            d->defaultOutputProfileData.resize(outputProfileSize);
+            if(!cmsSaveProfileToMem(d->defaultOutputProfile, d->defaultOutputProfileData.data(), &outputProfileSize))
+            {
+                d->defaultOutputProfileData.clear();
+            }
+        }
+        if (outputProfileSize <= 0 || d->defaultOutputProfileData.size() == 0)
+        {
+            vsapi->logMessage(mtWarning, "iccc: Won't set ICC frame props.", core);
+        }
+    }
     if (!d->defaultTransform)
     {
         cmsCloseProfile(d->defaultOutputProfile);
