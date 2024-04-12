@@ -5,6 +5,10 @@
 #include <mutex>
 #include <memory>
 
+#ifndef TYPE_RGB_FLT_PLANAR
+#define TYPE_RGB_FLT_PLANAR (FLOAT_SH(1)|COLORSPACE_SH(PT_RGB)|CHANNELS_SH(3)|BYTES_SH(4)|PLANAR_SH(1))
+#endif
+
 constexpr double REC709_ALPHA = 1.09929682680944;
 constexpr double REC709_BETA = 0.018053968510807;
 
@@ -62,8 +66,9 @@ struct icccData
     cmsHTRANSFORM defaultTransform; // This one is a copy from the map, don't free it directly
     cmsUInt32Number defaultIntent;
     cmsUInt32Number transformFlag;
-    // Format: now either RGB24 or RGB48
-    cmsUInt32Number lcmsDataType;
+    // Format: RGB24, RGB48, RGBS (slow)
+    cmsUInt32Number lcmsInputDataType;
+    cmsUInt32Number lcmsOutputDataType;
     p2p_packing p2pType = p2p_packing_max;
     // Flag for using props
     bool preferProps;
@@ -91,11 +96,11 @@ static cmsHTRANSFORM getTransform(const inputICCData &ind, icccData *d)
         cmsHTRANSFORM transform;
         if (d->proofingProfile)
         {
-            transform = cmsCreateProofingTransform(ind.profile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, d->proofingProfile, d->defaultIntent, d->proofingIntent, d->transformFlag);
+            transform = cmsCreateProofingTransform(ind.profile, d->lcmsInputDataType, d->defaultOutputProfile, d->lcmsOutputDataType, d->proofingProfile, d->defaultIntent, d->proofingIntent, d->transformFlag);
         }
         else
         {
-            transform = cmsCreateTransform(ind.profile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, ind.intent, d->transformFlag);
+            transform = cmsCreateTransform(ind.profile, d->lcmsInputDataType, d->defaultOutputProfile, d->lcmsOutputDataType, ind.intent, d->transformFlag);
         }
         if (transform)
         {
@@ -178,6 +183,7 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
         int stride = vsapi->getStride(frame, 0);
 
         VSFrame *dstFrame = vsapi->newVideoFrame(&d->vi.format, width, height, frame, core);
+        int dstStride = vsapi->getStride(dstFrame, 0);
         VSMap *map = vsapi->getFramePropertiesRW(dstFrame);
 
         // Create or find transform
@@ -237,47 +243,81 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
             return nullptr;
         }
 
-        void *packed = vsh::vsh_aligned_malloc(stride * height * 3, 32);
-        if (!packed)
+        bool usePacking = d->p2pType != p2p_packing_max;
+        if (usePacking)
         {
-            vsapi->freeFrame(frame);
-            vsapi->freeFrame(dstFrame);
-            vsapi->setFilterError("iccc: Out of memory when constructing transform.", frameCtx);
-            return nullptr;
+            void *packed = vsh::vsh_aligned_malloc(stride * height * 3, 32);
+            if (!packed)
+            {
+                vsapi->freeFrame(frame);
+                vsapi->freeFrame(dstFrame);
+                vsapi->setFilterError("iccc: Out of memory when constructing transform.", frameCtx);
+                return nullptr;
+            }
+
+            // Pack
+            p2p_buffer_param p2p_src = {};
+            p2p_src.width = width;
+            p2p_src.height = height;
+            for (int plane = 0; plane < 3; ++plane)
+            {
+                p2p_src.src[plane] = vsapi->getReadPtr(frame, plane);
+                p2p_src.src_stride[plane] = vsapi->getStride(frame, plane);
+            }
+            p2p_src.dst[0] = packed;
+            p2p_src.dst_stride[0] = stride * 3;
+            p2p_src.packing = d->p2pType;
+            p2p_pack_frame(&p2p_src, 0);
+
+            // Transform
+            cmsDoTransformLineStride(transform, packed, packed, width, height, stride * 3, stride * 3, 0, 0);
+
+            // Unpack
+            p2p_buffer_param p2p_dst = {};
+            p2p_dst.width = width;
+            p2p_dst.height = height;
+            for (int plane = 0; plane < 3; ++plane)
+            {
+                p2p_dst.dst[plane] = vsapi->getWritePtr(dstFrame, plane);
+                p2p_dst.dst_stride[plane] = vsapi->getStride(dstFrame, plane);
+            }
+            p2p_dst.src[0] = packed;
+            p2p_dst.src_stride[0] = stride * 3;
+            p2p_dst.packing = d->p2pType;
+            p2p_unpack_frame(&p2p_dst, 0);
+
+            vsh::vsh_aligned_free(packed);
+        }
+        else
+        {
+            uint8_t *srcBuffer = reinterpret_cast<uint8_t *>(vsh::vsh_aligned_malloc(stride * height * 3, 32));
+            uint8_t *dstBuffer = reinterpret_cast<uint8_t *>(vsh::vsh_aligned_malloc(dstStride * height * 3, 32));
+            if (!srcBuffer || !dstBuffer)
+            {
+                if (srcBuffer) vsh::vsh_aligned_free(srcBuffer);
+                if (dstBuffer) vsh::vsh_aligned_free(dstBuffer);
+                vsapi->freeFrame(frame);
+                vsapi->freeFrame(dstFrame);
+                vsapi->setFilterError("iccc: Out of memory when constructing transform.", frameCtx);
+                return nullptr;
+            }
+            int widthBit = width * vsapi->getVideoFrameFormat(frame)->bytesPerSample;
+            int dstWidthBit = width * d->vi.format.bytesPerSample;
+            vsh::bitblt(srcBuffer, stride, vsapi->getReadPtr(frame, 0), stride, widthBit, height);
+            vsh::bitblt(&srcBuffer[stride * height], stride, vsapi->getReadPtr(frame, 1), stride, widthBit, height);
+            vsh::bitblt(&srcBuffer[2 * stride * height], stride, vsapi->getReadPtr(frame, 2), stride, widthBit, height);
+
+            cmsDoTransformLineStride(transform, srcBuffer, dstBuffer, width, height, stride, dstStride, stride * height, dstStride * height);
+
+            vsh::vsh_aligned_free(srcBuffer);
+
+            vsh::bitblt(vsapi->getWritePtr(dstFrame, 0), dstStride, dstBuffer, dstStride, dstWidthBit, height);
+            vsh::bitblt(vsapi->getWritePtr(dstFrame, 1), dstStride, &dstBuffer[dstStride * height], dstStride, dstWidthBit, height);
+            vsh::bitblt(vsapi->getWritePtr(dstFrame, 2), dstStride, &dstBuffer[2 * dstStride * height], dstStride, dstWidthBit, height);
+
+            vsh::vsh_aligned_free(dstBuffer);
         }
 
-        // Pack
-        p2p_buffer_param p2p_src = {};
-        p2p_src.width = width;
-        p2p_src.height = height;
-        for (int plane = 0; plane < 3; ++plane)
-        {
-            p2p_src.src[plane] = vsapi->getReadPtr(frame, plane);
-            p2p_src.src_stride[plane] = vsapi->getStride(frame, plane);
-        }
-        p2p_src.dst[0] = packed;
-        p2p_src.dst_stride[0] = stride * 3;
-        p2p_src.packing = d->p2pType;
-        p2p_pack_frame(&p2p_src, 0);
-
-        // Transform
-        cmsDoTransformLineStride(transform, packed, packed, width, height, stride * 3, stride * 3, 0, 0);
-
-        // Unpack
-        p2p_buffer_param p2p_dst = {};
-        p2p_dst.width = width;
-        p2p_dst.height = height;
-        for (int plane = 0; plane < 3; ++plane)
-        {
-            p2p_dst.dst[plane] = vsapi->getWritePtr(dstFrame, plane);
-            p2p_dst.dst_stride[plane] = vsapi->getStride(dstFrame, plane);
-        }
-        p2p_dst.src[0] = packed;
-        p2p_dst.src_stride[0] = stride * 3;
-        p2p_dst.packing = d->p2pType;
-        p2p_unpack_frame(&p2p_dst, 0);
-
-        vsh::vsh_aligned_free(packed);
         vsapi->freeFrame(frame);
 
         // Set frame props
@@ -306,25 +346,31 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
     uint32_t srcFormat = vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core);
+    d->vi = *vi;
 
     if (srcFormat == pfRGB24)
     {
-        d->lcmsDataType = TYPE_BGR_8;
+        d->lcmsInputDataType = TYPE_BGR_8;
+        d->lcmsOutputDataType = d->lcmsInputDataType;
         d->p2pType = p2p_rgb24;
     }
     else if (srcFormat == pfRGB48)
     {
-        d->lcmsDataType = TYPE_BGR_16;
+        d->lcmsInputDataType = TYPE_BGR_16;
+        d->lcmsOutputDataType = d->lcmsInputDataType;
         d->p2pType = p2p_rgb48;
+    }
+    else if (srcFormat == pfRGBS)
+    {
+        d->lcmsInputDataType = TYPE_RGB_FLT_PLANAR;
+        d->lcmsOutputDataType = d->lcmsInputDataType;
     }
     else
     {
         vsapi->freeNode(d->node);
-        vsapi->mapSetError(out, "iccc: Currently only RGB24 and RGB48 input formats are well supported.");
+        vsapi->mapSetError(out, "iccc: Currently only RGB24, RGB48 and RGBS input formats are well supported.");
         return;
     }
-
-    d->vi = *vi;
 
     int err;
 
@@ -541,11 +587,11 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     {
         if (d->proofingProfile)
         {
-            d->defaultTransform = cmsCreateProofingTransform(inputProfile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, d->proofingProfile, d->defaultIntent, d->proofingIntent, d->transformFlag);
+            d->defaultTransform = cmsCreateProofingTransform(inputProfile, d->lcmsInputDataType, d->defaultOutputProfile, d->lcmsOutputDataType, d->proofingProfile, d->defaultIntent, d->proofingIntent, d->transformFlag);
         }
         else
         {
-            d->defaultTransform = cmsCreateTransform(inputProfile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, d->defaultIntent, d->transformFlag);
+            d->defaultTransform = cmsCreateTransform(inputProfile, d->lcmsInputDataType, d->defaultOutputProfile, d->lcmsOutputDataType, d->defaultIntent, d->transformFlag);
         }
         inputICCData ind(inputProfile, d->defaultIntent);
         d->transformMap[ind] = d->defaultTransform;
@@ -577,13 +623,20 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     if (srcFormat == pfRGB24)
     {
-        d->lcmsDataType = TYPE_BGR_8;
+        d->lcmsInputDataType = TYPE_BGR_8;
+        d->lcmsOutputDataType = d->lcmsInputDataType;
         d->p2pType = p2p_rgb24;
     }
     else if (srcFormat == pfRGB48)
     {
-        d->lcmsDataType = TYPE_BGR_16;
+        d->lcmsInputDataType = TYPE_BGR_16;
+        d->lcmsOutputDataType = d->lcmsInputDataType;
         d->p2pType = p2p_rgb48;
+    }
+    else if (srcFormat == pfRGBS)
+    {
+        d->lcmsInputDataType = TYPE_RGB_FLT_PLANAR;
+        d->lcmsOutputDataType = d->lcmsInputDataType;
     }
     else
     {
@@ -765,7 +818,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     if (inverse)
     {
-        d->defaultTransform = cmsCreateTransform(d->defaultOutputProfile, d->lcmsDataType, inputProfile, d->lcmsDataType, d->defaultIntent, d->transformFlag);
+        d->defaultTransform = cmsCreateTransform(d->defaultOutputProfile, d->lcmsInputDataType, inputProfile, d->lcmsOutputDataType, d->defaultIntent, d->transformFlag);
 
         cmsUInt32Number outputProfileSize = 0;
         cmsSaveProfileToMem(inputProfile, nullptr, &outputProfileSize);
@@ -784,7 +837,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     else
     {
-        d->defaultTransform = cmsCreateTransform(inputProfile, d->lcmsDataType, d->defaultOutputProfile, d->lcmsDataType, d->defaultIntent, d->transformFlag);
+        d->defaultTransform = cmsCreateTransform(inputProfile, d->lcmsInputDataType, d->defaultOutputProfile, d->lcmsOutputDataType, d->defaultIntent, d->transformFlag);
         cmsUInt32Number outputProfileSize = 0;
         cmsSaveProfileToMem(d->defaultOutputProfile, nullptr, &outputProfileSize);
         if (outputProfileSize > 0)
