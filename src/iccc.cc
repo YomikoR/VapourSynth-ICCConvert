@@ -164,6 +164,29 @@ static PresetProfile createPresetProfile(const char *name)
         pp.profile = cmsCreateRGBProfile(&wp, &prim, curves);
         cmsFreeToneCurve(curve);
     }
+    else if (strcmp(name, "xyz") == 0 || strcmp(name, "XYZ") == 0)
+    {
+        pp.primaries = VSC_PRIMARIES_ST428;
+        pp.transfer = VSC_TRANSFER_LINEAR;
+        cmsCIExyYTRIPLE prim = {
+            {1.0, 0.0, 1.0},
+            {0.0, 1.0, 1.0},
+            {0.0, 0.0, 1.0},
+        };
+        cmsFloat64Number paramsX[3] = {1.0, 1.0 / 0.964212, 0.0};
+        cmsFloat64Number paramsZ[3] = {1.0, 1.0 / 0.825188, 0.0};
+        cmsToneCurve *curveX = cmsBuildParametricToneCurve(nullptr, 2, paramsX);
+        cmsToneCurve *curveY = cmsBuildGamma(nullptr, 1.0);
+        cmsToneCurve *curveZ = cmsBuildParametricToneCurve(nullptr, 2, paramsZ);
+        cmsToneCurve *curves[3] = {curveX, curveY, curveZ};
+        pp.profile = cmsCreateRGBProfile(cmsD50_xyY(), &prim, curves);
+        cmsFreeToneCurve(curveX);
+        cmsFreeToneCurve(curveY);
+        cmsFreeToneCurve(curveZ);
+        cmsSetHeaderRenderingIntent(pp.profile, INTENT_RELATIVE_COLORIMETRIC);
+        cmsSetPCS(pp.profile, cmsSigXYZData);
+        cmsSetHeaderAttributes(pp.profile, cmsTransparency);
+    }
     return pp;
 }
 
