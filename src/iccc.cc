@@ -523,15 +523,16 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     else
     {
-        d->defaultIntent = getIntent(intentString);
-    }
-    if (d->defaultIntent < 0)
-    {
-        cmsCloseProfile(d->defaultOutputProfile);
-        inputProfile && cmsCloseProfile(inputProfile);
-        vsapi->freeNode(d->node);
-        vsapi->mapSetError(out, "iccc: Input ICC intent is not supported.");
-        return;
+        int itt = getIntent(intentString);
+        if (itt < 0)
+        {
+            cmsCloseProfile(d->defaultOutputProfile);
+            inputProfile && cmsCloseProfile(inputProfile);
+            vsapi->freeNode(d->node);
+            vsapi->mapSetError(out, "iccc: Input ICC intent is not supported.");
+            return;
+        }
+        d->defaultIntent = itt;
     }
 
     d->transformFlag = cmsFLAGS_NONEGATIVES;
@@ -574,16 +575,17 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         }
         else
         {
-            d->proofingIntent = getIntent(proofingIntentString);
-        }
-        if (d->proofingIntent < 0)
-        {
-            cmsCloseProfile(d->defaultOutputProfile);
-            inputProfile && cmsCloseProfile(inputProfile);
-            cmsCloseProfile(d->proofingProfile);
-            vsapi->freeNode(d->node);
-            vsapi->mapSetError(out, "iccc: Input proofing intent is not supported.");
-            return;
+            int itt = getIntent(proofingIntentString);
+            if (itt < 0)
+            {
+                cmsCloseProfile(d->defaultOutputProfile);
+                inputProfile && cmsCloseProfile(inputProfile);
+                cmsCloseProfile(d->proofingProfile);
+                vsapi->freeNode(d->node);
+                vsapi->mapSetError(out, "iccc: Input proofing intent is not supported.");
+                return;
+            }
+            d->proofingIntent = itt;
         }
     }
 
@@ -824,15 +826,16 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     else
     {
-        d->defaultIntent = getIntent(intentString);
-    }
-    if (d->defaultIntent < 0)
-    {
-        cmsCloseProfile(d->defaultOutputProfile);
-        cmsCloseProfile(inputProfile);
-        vsapi->freeNode(d->node);
-        vsapi->mapSetError(out, "iccc: Input ICC intent is not supported.");
-        return;
+        int itt = getIntent(intentString);
+        if (itt < 0)
+        {
+            cmsCloseProfile(d->defaultOutputProfile);
+            cmsCloseProfile(inputProfile);
+            vsapi->freeNode(d->node);
+            vsapi->mapSetError(out, "iccc: Input ICC intent is not supported.");
+            return;
+        }
+        d->defaultIntent = itt;
     }
 
     d->transformFlag = cmsFLAGS_NONEGATIVES;
