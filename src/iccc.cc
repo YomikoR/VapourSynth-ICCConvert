@@ -462,7 +462,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         d->intent = itt;
     }
 
-    d->transformFlag = srcFormat == pfRGBS ? 0 : cmsFLAGS_NONEGATIVES;
+    d->transformFlag = cmsFLAGS_NONEGATIVES;
 
     const char *proofingProfilePath = vsapi->mapGetData(in, "proofing_icc", 0, &err);
     if (proofingProfilePath)
@@ -676,7 +676,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         d->intent = itt;
     }
 
-    d->transformFlag = srcFormat == pfRGBS ? 0 : cmsFLAGS_NONEGATIVES;
+    d->transformFlag = cmsFLAGS_NONEGATIVES;
 
     bool blackPointCompensation = vsapi->mapGetInt(in, "black_point_compensation", 0, &err);
     if (err)
