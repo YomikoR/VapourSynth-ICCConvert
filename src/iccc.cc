@@ -266,81 +266,83 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
             return nullptr;
         }
 
+        uint8_t *buffer = reinterpret_cast<uint8_t *>(vsh::vsh_aligned_malloc(stride * 1 * 3, 32));
+        if (!buffer)
+        {
+            vsapi->freeFrame(frame);
+            vsapi->freeFrame(dstFrame);
+            vsapi->setFilterError("iccc: Out of memory when constructing transform.", frameCtx);
+            return nullptr;
+        }
+
+        const uint8_t *srcFrame0 = vsapi->getReadPtr(frame, 0);
+        const uint8_t *srcFrame1 = vsapi->getReadPtr(frame, 1);
+        const uint8_t *srcFrame2 = vsapi->getReadPtr(frame, 2);
+        uint8_t *dstFrame0 = vsapi->getWritePtr(dstFrame, 0);
+        uint8_t *dstFrame1 = vsapi->getWritePtr(dstFrame, 1);
+        uint8_t *dstFrame2 = vsapi->getWritePtr(dstFrame, 2);
+
         bool usePacking = d->p2pType != p2p_packing_max;
         if (usePacking)
         {
-            void *packed = vsh::vsh_aligned_malloc(stride * height * 3, 32);
-            if (!packed)
-            {
-                vsapi->freeFrame(frame);
-                vsapi->freeFrame(dstFrame);
-                vsapi->setFilterError("iccc: Out of memory when constructing transform.", frameCtx);
-                return nullptr;
-            }
-
-            // Pack
             p2p_buffer_param p2p_src = {};
             p2p_src.width = width;
-            p2p_src.height = height;
-            for (int plane = 0; plane < 3; ++plane)
-            {
-                p2p_src.src[plane] = vsapi->getReadPtr(frame, plane);
-                p2p_src.src_stride[plane] = vsapi->getStride(frame, plane);
-            }
-            p2p_src.dst[0] = packed;
+            p2p_src.height = 1;
+            p2p_src.dst[0] = buffer;
             p2p_src.dst_stride[0] = stride * 3;
             p2p_src.packing = d->p2pType;
-            p2p_pack_frame(&p2p_src, 0);
 
-            // Transform
-            cmsDoTransformLineStride(transform, packed, packed, width, height, stride * 3, stride * 3, 0, 0);
-
-            // Unpack
             p2p_buffer_param p2p_dst = {};
             p2p_dst.width = width;
-            p2p_dst.height = height;
-            for (int plane = 0; plane < 3; ++plane)
-            {
-                p2p_dst.dst[plane] = vsapi->getWritePtr(dstFrame, plane);
-                p2p_dst.dst_stride[plane] = vsapi->getStride(dstFrame, plane);
-            }
-            p2p_dst.src[0] = packed;
+            p2p_dst.height = 1;
+            p2p_dst.src[0] = buffer;
             p2p_dst.src_stride[0] = stride * 3;
             p2p_dst.packing = d->p2pType;
-            p2p_unpack_frame(&p2p_dst, 0);
 
-            vsh::vsh_aligned_free(packed);
+            const uint8_t *srcFrames[3] = {srcFrame0, srcFrame1, srcFrame2};
+            uint8_t *dstFrames[3] = {dstFrame0, dstFrame1, dstFrame2};
+
+            for (int h = 0; h < height; ++h)
+            {
+                for (int plane = 0; plane < 3; ++plane)
+                {
+                    const uint8_t *start = srcFrames[plane];
+                    p2p_src.src[plane] = &start[h * stride];
+                    p2p_src.src_stride[plane] = vsapi->getStride(frame, plane);
+                }
+                p2p_pack_frame(&p2p_src, 0);
+
+                cmsDoTransformLineStride(transform, buffer, buffer, width, 1, stride * 3, stride * 3, 0, 0);
+
+                for (int plane = 0; plane < 3; ++plane)
+                {
+                    uint8_t *start = dstFrames[plane];
+                    p2p_dst.dst[plane] = &start[h * stride];
+                    p2p_dst.dst_stride[plane] = vsapi->getStride(dstFrame, plane);
+                }
+                p2p_unpack_frame(&p2p_dst, 0);
+            }
         }
         else
         {
-            uint8_t *srcBuffer = reinterpret_cast<uint8_t *>(vsh::vsh_aligned_malloc(stride * height * 3, 32));
-            uint8_t *dstBuffer = reinterpret_cast<uint8_t *>(vsh::vsh_aligned_malloc(dstStride * height * 3, 32));
-            if (!srcBuffer || !dstBuffer)
-            {
-                if (srcBuffer) vsh::vsh_aligned_free(srcBuffer);
-                if (dstBuffer) vsh::vsh_aligned_free(dstBuffer);
-                vsapi->freeFrame(frame);
-                vsapi->freeFrame(dstFrame);
-                vsapi->setFilterError("iccc: Out of memory when constructing transform.", frameCtx);
-                return nullptr;
-            }
             int widthBit = width * vsapi->getVideoFrameFormat(frame)->bytesPerSample;
             int dstWidthBit = width * d->vi.format.bytesPerSample;
-            vsh::bitblt(srcBuffer, stride, vsapi->getReadPtr(frame, 0), stride, widthBit, height);
-            vsh::bitblt(&srcBuffer[stride * height], stride, vsapi->getReadPtr(frame, 1), stride, widthBit, height);
-            vsh::bitblt(&srcBuffer[2 * stride * height], stride, vsapi->getReadPtr(frame, 2), stride, widthBit, height);
 
-            cmsDoTransformLineStride(transform, srcBuffer, dstBuffer, width, height, stride, dstStride, stride * height, dstStride * height);
+            for (int h = 0; h < height; ++h)
+            {
+                vsh::bitblt(buffer, stride, &srcFrame0[h * stride], stride, widthBit, 1);
+                vsh::bitblt(&buffer[stride * 1], stride, &srcFrame1[h * stride], stride, widthBit, 1);
+                vsh::bitblt(&buffer[2 * stride * 1], stride, &srcFrame2[h * stride], stride, widthBit, 1);
 
-            vsh::vsh_aligned_free(srcBuffer);
+                cmsDoTransformLineStride(transform, buffer, buffer, width, 1, stride, dstStride, stride * 1, dstStride * 1);
 
-            vsh::bitblt(vsapi->getWritePtr(dstFrame, 0), dstStride, dstBuffer, dstStride, dstWidthBit, height);
-            vsh::bitblt(vsapi->getWritePtr(dstFrame, 1), dstStride, &dstBuffer[dstStride * height], dstStride, dstWidthBit, height);
-            vsh::bitblt(vsapi->getWritePtr(dstFrame, 2), dstStride, &dstBuffer[2 * dstStride * height], dstStride, dstWidthBit, height);
-
-            vsh::vsh_aligned_free(dstBuffer);
+                vsh::bitblt(&dstFrame0[h * stride], dstStride, buffer, dstStride, dstWidthBit, 1);
+                vsh::bitblt(&dstFrame1[h * stride], dstStride, &buffer[dstStride * 1], dstStride, dstWidthBit, 1);
+                vsh::bitblt(&dstFrame2[h * stride], dstStride, &buffer[2 * dstStride * 1], dstStride, dstWidthBit, 1);
+            }
         }
 
+        vsh::vsh_aligned_free(buffer);
         vsapi->freeFrame(frame);
 
         // Set frame props
