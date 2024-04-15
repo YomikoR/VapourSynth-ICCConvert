@@ -120,6 +120,15 @@ struct PresetProfile
     VSTransferCharacteristics transfer = VSC_TRANSFER_UNSPECIFIED;
 };
 
+static int getIntent(const char *intent)
+{
+    if (strcmp(intent, "perceptual") == 0) return INTENT_PERCEPTUAL;
+    else if (strcmp(intent, "relative") == 0) return INTENT_RELATIVE_COLORIMETRIC;
+    else if (strcmp(intent, "saturation") == 0) return INTENT_SATURATION;
+    else if (strcmp(intent, "absolute") == 0) return INTENT_ABSOLUTE_COLORIMETRIC;
+    else return -1;
+}
+
 static PresetProfile createPresetProfile(const char *name)
 {
     PresetProfile pp;
@@ -512,11 +521,11 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     {
         if (inputProfile) d->defaultIntent = cmsGetHeaderRenderingIntent(inputProfile);
     }
-    else if (strcmp(intentString, "perceptual") == 0) d->defaultIntent = INTENT_PERCEPTUAL;
-    else if (strcmp(intentString, "relative") == 0) d->defaultIntent = INTENT_RELATIVE_COLORIMETRIC;
-    else if (strcmp(intentString, "saturation") == 0) d->defaultIntent = INTENT_SATURATION;
-    else if (strcmp(intentString, "absolute") == 0) d->defaultIntent = INTENT_ABSOLUTE_COLORIMETRIC;
     else
+    {
+        d->defaultIntent = getIntent(intentString);
+    }
+    if (d->defaultIntent < 0)
     {
         cmsCloseProfile(d->defaultOutputProfile);
         inputProfile && cmsCloseProfile(inputProfile);
@@ -563,11 +572,11 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         {
             d->proofingIntent = cmsGetHeaderRenderingIntent(d->proofingProfile);
         }
-        else if (strcmp(proofingIntentString, "perceptual") == 0) d->proofingIntent = INTENT_PERCEPTUAL;
-        else if (strcmp(proofingIntentString, "relative") == 0) d->proofingIntent = INTENT_RELATIVE_COLORIMETRIC;
-        else if (strcmp(proofingIntentString, "saturation") == 0) d->proofingIntent = INTENT_SATURATION;
-        else if (strcmp(proofingIntentString, "absolute") == 0) d->proofingIntent = INTENT_ABSOLUTE_COLORIMETRIC;
         else
+        {
+            d->proofingIntent = getIntent(proofingIntentString);
+        }
+        if (d->proofingIntent < 0)
         {
             cmsCloseProfile(d->defaultOutputProfile);
             inputProfile && cmsCloseProfile(inputProfile);
@@ -813,11 +822,11 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     {
         d->defaultIntent = INTENT_RELATIVE_COLORIMETRIC;
     }
-    else if (strcmp(intentString, "perceptual") == 0) d->defaultIntent = INTENT_PERCEPTUAL;
-    else if (strcmp(intentString, "relative") == 0) d->defaultIntent = INTENT_RELATIVE_COLORIMETRIC;
-    else if (strcmp(intentString, "saturation") == 0) d->defaultIntent = INTENT_SATURATION;
-    else if (strcmp(intentString, "absolute") == 0) d->defaultIntent = INTENT_ABSOLUTE_COLORIMETRIC;
     else
+    {
+        d->defaultIntent = getIntent(intentString);
+    }
+    if (d->defaultIntent < 0)
     {
         cmsCloseProfile(d->defaultOutputProfile);
         cmsCloseProfile(inputProfile);
@@ -980,6 +989,16 @@ void VS_CC tagCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, 
             vsapi->mapSetError(out, "iccc: Input ICC seems invalid.");
             return;
         }
+    }
+
+    const char *intentString = vsapi->mapGetData(in, "intent", 0, &err);
+    if (!err && intentString)
+    {
+        int intent = getIntent(intentString);
+        if (intent < 0)
+            vsapi->logMessage(mtWarning, "iccc: Input ICC intent is not supported. Will use the intent from ICC profile header.", core);
+        else
+            cmsSetHeaderRenderingIntent(profile, intent);
     }
 
     cmsUInt32Number size = 0;

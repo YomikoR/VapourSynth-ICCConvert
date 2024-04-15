@@ -40,7 +40,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin* plugin, const VSPLUGINAPI
 
     vspapi->registerFunction("Tag",
         "clip:vnode;"
-        "icc:data;",
+        "icc:data;"
+        "intent:data:opt;",
         "clip:vnode;",
         tagCreate, nullptr, plugin
     );
