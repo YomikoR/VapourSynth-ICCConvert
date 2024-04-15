@@ -69,7 +69,8 @@ struct icccData
     // Format: RGB24, RGB48, RGBS (slow)
     cmsUInt32Number lcmsInputDataType;
     cmsUInt32Number lcmsOutputDataType;
-    p2p_packing p2pType = p2p_packing_max;
+    p2p_packing InputP2PType = p2p_packing_max;
+    p2p_packing OutputP2PType = p2p_packing_max;
     // Flag for using props
     bool preferProps;
     // Proofing profile and intent
@@ -200,12 +201,13 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
     }
     else if (activationReason == arAllFramesReady)
     {
-        const VSFrame *frame = vsapi->getFrameFilter(n, d->node, frameCtx);
-        int width = vsapi->getFrameWidth(frame, 0);
-        int height = vsapi->getFrameHeight(frame, 0);
-        int stride = vsapi->getStride(frame, 0);
+        const VSFrame *srcFrame = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSVideoFormat *srcFormat = vsapi->getVideoFrameFormat(srcFrame);
+        int width = vsapi->getFrameWidth(srcFrame, 0);
+        int height = vsapi->getFrameHeight(srcFrame, 0);
+        int srcStride = vsapi->getStride(srcFrame, 0);
 
-        VSFrame *dstFrame = vsapi->newVideoFrame(&d->vi.format, width, height, frame, core);
+        VSFrame *dstFrame = vsapi->newVideoFrame(&d->vi.format, width, height, srcFrame, core);
         int dstStride = vsapi->getStride(dstFrame, 0);
         VSMap *map = vsapi->getFramePropertiesRW(dstFrame);
 
@@ -225,14 +227,14 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
                     // Sanity checks
                     if ((cmsGetDeviceClass(inp) != cmsSigDisplayClass) && (cmsGetDeviceClass(inp) != cmsSigInputClass))
                     {
-                        vsapi->freeFrame(frame);
+                        vsapi->freeFrame(srcFrame);
                         vsapi->freeFrame(dstFrame);
                         vsapi->setFilterError("iccc: The device class of the embedded ICC profile is not supported.", frameCtx);
                         return nullptr;
                     }
                     if (cmsGetColorSpace(inp) != cmsSigRgbData)
                     {
-                        vsapi->freeFrame(frame);
+                        vsapi->freeFrame(srcFrame);
                         vsapi->freeFrame(dstFrame);
                         vsapi->setFilterError("iccc: The colorspace of the embedded ICC profile is not supported.", frameCtx);
                         return nullptr;
@@ -242,7 +244,7 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
                     cmsCloseProfile(inp);
                     if (!transform)
                     {
-                        vsapi->freeFrame(frame);
+                        vsapi->freeFrame(srcFrame);
                         vsapi->freeFrame(dstFrame);
                         vsapi->setFilterError("iccc: Failed to create transform from embedded ICC profile.", frameCtx);
                         return nullptr;
@@ -250,7 +252,7 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
                 }
                 else
                 {
-                    vsapi->freeFrame(frame);
+                    vsapi->freeFrame(srcFrame);
                     vsapi->freeFrame(dstFrame);
                     vsapi->setFilterError("iccc: Unable to read embedded ICC profile. Corrupted?", frameCtx);
                     return nullptr;
@@ -260,90 +262,90 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
 
         if (!transform)
         {
-            vsapi->freeFrame(frame);
+            vsapi->freeFrame(srcFrame);
             vsapi->freeFrame(dstFrame);
             vsapi->setFilterError("iccc: Failed to construct transform. This may be caused by insufficient ICC profile info provided.", frameCtx);
             return nullptr;
         }
 
-        uint8_t *buffer = reinterpret_cast<uint8_t *>(vsh::vsh_aligned_malloc(stride * 1 * 3, 32));
-        if (!buffer)
+        uint8_t *srcBuffer = reinterpret_cast<uint8_t *>(vsh::vsh_aligned_malloc(srcStride * 1 * 3, 32));
+        uint8_t *dstBuffer = srcBuffer;
+        bool needDstBuffer = !vsh::isSameVideoFormat(srcFormat, &d->vi.format);
+        if (needDstBuffer)
+            dstBuffer = reinterpret_cast<uint8_t *>(vsh::vsh_aligned_malloc(dstStride * 1 * 3, 32));
+        if (!srcBuffer || !dstBuffer)
         {
-            vsapi->freeFrame(frame);
+            if (srcBuffer) vsh::vsh_aligned_free(srcBuffer);
+            if (dstBuffer && needDstBuffer) vsh::vsh_aligned_free(dstBuffer);
+            vsapi->freeFrame(srcFrame);
             vsapi->freeFrame(dstFrame);
             vsapi->setFilterError("iccc: Out of memory when constructing transform.", frameCtx);
             return nullptr;
         }
 
-        const uint8_t *srcFrame0 = vsapi->getReadPtr(frame, 0);
-        const uint8_t *srcFrame1 = vsapi->getReadPtr(frame, 1);
-        const uint8_t *srcFrame2 = vsapi->getReadPtr(frame, 2);
-        uint8_t *dstFrame0 = vsapi->getWritePtr(dstFrame, 0);
-        uint8_t *dstFrame1 = vsapi->getWritePtr(dstFrame, 1);
-        uint8_t *dstFrame2 = vsapi->getWritePtr(dstFrame, 2);
+        std::vector<const uint8_t *> srcPlanes;
+        for (int p = 0; p < srcFormat->numPlanes; ++p)
+            srcPlanes.push_back(vsapi->getReadPtr(srcFrame, p));
 
-        bool usePacking = d->p2pType != p2p_packing_max;
-        if (usePacking)
+        std::vector<uint8_t *> dstPlanes;
+        for (int p = 0; p < d->vi.format.numPlanes; ++p)
+            dstPlanes.push_back(vsapi->getWritePtr(dstFrame, p));
+
+        int srcWidthBit = width * srcFormat->bytesPerSample;
+        int dstWidthBit = width * d->vi.format.bytesPerSample;
+
+        p2p_buffer_param p2p_src = {};
+        p2p_src.width = width;
+        p2p_src.height = 1;
+        p2p_src.dst[0] = srcBuffer;
+        p2p_src.dst_stride[0] = srcStride * 3;
+        p2p_src.packing = d->InputP2PType;
+
+        p2p_buffer_param p2p_dst = {};
+        p2p_dst.width = width;
+        p2p_dst.height = 1;
+        p2p_dst.src[0] = dstBuffer;
+        p2p_dst.src_stride[0] = dstStride * 3;
+        p2p_dst.packing = d->OutputP2PType;
+
+        for (int h = 0; h < height; ++h)
         {
-            p2p_buffer_param p2p_src = {};
-            p2p_src.width = width;
-            p2p_src.height = 1;
-            p2p_src.dst[0] = buffer;
-            p2p_src.dst_stride[0] = stride * 3;
-            p2p_src.packing = d->p2pType;
-
-            p2p_buffer_param p2p_dst = {};
-            p2p_dst.width = width;
-            p2p_dst.height = 1;
-            p2p_dst.src[0] = buffer;
-            p2p_dst.src_stride[0] = stride * 3;
-            p2p_dst.packing = d->p2pType;
-
-            const uint8_t *srcFrames[3] = {srcFrame0, srcFrame1, srcFrame2};
-            uint8_t *dstFrames[3] = {dstFrame0, dstFrame1, dstFrame2};
-
-            for (int h = 0; h < height; ++h)
+            if (d->InputP2PType == p2p_packing_max)
             {
-                for (int plane = 0; plane < 3; ++plane)
+                for (int p = 0; p < srcFormat->numPlanes; ++p)
+                    vsh::bitblt(&srcBuffer[p * srcStride * 1], srcStride, &srcPlanes[p][h * srcStride], srcStride, srcWidthBit, 1);
+            }
+            else
+            {
+                for (int p = 0; p < srcFormat->numPlanes; ++p)
                 {
-                    const uint8_t *start = srcFrames[plane];
-                    p2p_src.src[plane] = &start[h * stride];
-                    p2p_src.src_stride[plane] = vsapi->getStride(frame, plane);
+                    p2p_src.src[p] = &srcPlanes[p][h * srcStride];
+                    p2p_src.src_stride[p] = srcStride;
                 }
                 p2p_pack_frame(&p2p_src, 0);
+            }
 
-                cmsDoTransformLineStride(transform, buffer, buffer, width, 1, stride * 3, stride * 3, 0, 0);
+            cmsDoTransformLineStride(transform, srcBuffer, dstBuffer, width, 1, srcStride * 3, dstStride * 3, 0, 0);
 
-                for (int plane = 0; plane < 3; ++plane)
+            if (d->OutputP2PType == p2p_packing_max)
+            {
+                for (int p = 0; p < d->vi.format.numPlanes; ++p)
+                    vsh::bitblt(&dstPlanes[p][h * dstStride], dstStride, &dstBuffer[p * dstStride * 1], dstStride, dstWidthBit, 1);
+            }
+            else
+            {
+                for (int p = 0; p < d->vi.format.numPlanes; ++p)
                 {
-                    uint8_t *start = dstFrames[plane];
-                    p2p_dst.dst[plane] = &start[h * stride];
-                    p2p_dst.dst_stride[plane] = vsapi->getStride(dstFrame, plane);
+                    p2p_dst.dst[p] = &dstPlanes[p][h * dstStride];
+                    p2p_dst.dst_stride[p] = dstStride;
                 }
                 p2p_unpack_frame(&p2p_dst, 0);
             }
         }
-        else
-        {
-            int widthBit = width * vsapi->getVideoFrameFormat(frame)->bytesPerSample;
-            int dstWidthBit = width * d->vi.format.bytesPerSample;
 
-            for (int h = 0; h < height; ++h)
-            {
-                vsh::bitblt(buffer, stride, &srcFrame0[h * stride], stride, widthBit, 1);
-                vsh::bitblt(&buffer[stride * 1], stride, &srcFrame1[h * stride], stride, widthBit, 1);
-                vsh::bitblt(&buffer[2 * stride * 1], stride, &srcFrame2[h * stride], stride, widthBit, 1);
-
-                cmsDoTransformLineStride(transform, buffer, buffer, width, 1, stride, dstStride, stride * 1, dstStride * 1);
-
-                vsh::bitblt(&dstFrame0[h * stride], dstStride, buffer, dstStride, dstWidthBit, 1);
-                vsh::bitblt(&dstFrame1[h * stride], dstStride, &buffer[dstStride * 1], dstStride, dstWidthBit, 1);
-                vsh::bitblt(&dstFrame2[h * stride], dstStride, &buffer[2 * dstStride * 1], dstStride, dstWidthBit, 1);
-            }
-        }
-
-        vsh::vsh_aligned_free(buffer);
-        vsapi->freeFrame(frame);
+        vsh::vsh_aligned_free(srcBuffer);
+        if (needDstBuffer) vsh::vsh_aligned_free(dstBuffer);
+        vsapi->freeFrame(srcFrame);
 
         // Set frame props
         vsapi->mapSetInt(map, "_Primaries", d->defaultPrimaries, maReplace);
@@ -379,13 +381,15 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     {
         d->lcmsInputDataType = TYPE_BGR_8;
         d->lcmsOutputDataType = d->lcmsInputDataType;
-        d->p2pType = p2p_rgb24;
+        d->InputP2PType = p2p_rgb24;
+        d->OutputP2PType = d->InputP2PType;
     }
     else if (srcFormat == pfRGB48)
     {
         d->lcmsInputDataType = TYPE_BGR_16;
         d->lcmsOutputDataType = d->lcmsInputDataType;
-        d->p2pType = p2p_rgb48;
+        d->InputP2PType = p2p_rgb48;
+        d->OutputP2PType = d->InputP2PType;
     }
     else if (srcFormat == pfRGBS)
     {
@@ -652,13 +656,15 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     {
         d->lcmsInputDataType = TYPE_BGR_8;
         d->lcmsOutputDataType = d->lcmsInputDataType;
-        d->p2pType = p2p_rgb24;
+        d->InputP2PType = p2p_rgb24;
+        d->OutputP2PType = d->InputP2PType;
     }
     else if (srcFormat == pfRGB48)
     {
         d->lcmsInputDataType = TYPE_BGR_16;
         d->lcmsOutputDataType = d->lcmsInputDataType;
-        d->p2pType = p2p_rgb48;
+        d->InputP2PType = p2p_rgb48;
+        d->OutputP2PType = d->InputP2PType;
     }
     else if (srcFormat == pfRGBS)
     {
