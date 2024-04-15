@@ -350,6 +350,8 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
         vsapi->mapSetInt(map, "_Transfer", d->defaultTransfer, maReplace);
         if (d->defaultOutputProfileData.size() > 0)
             vsapi->mapSetData(map, "ICCProfile", d->defaultOutputProfileData.data(), d->defaultOutputProfileData.size(), dtBinary, maReplace);
+        else
+            vsapi->mapDeleteKey(map, "ICCProfile");
 
         return dstFrame;
     }
