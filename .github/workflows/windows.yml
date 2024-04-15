@@ -1,0 +1,43 @@
+name: Windows
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        update: true
+        install: >-
+          autoconf
+          automake
+          base-devel
+          git
+          libtool
+          mingw-w64-ucrt-x86_64-cmake
+          mingw-w64-ucrt-x86_64-lcms2
+          mingw-w64-ucrt-x86_64-meson
+          mingw-w64-ucrt-x86_64-toolchain
+          mingw-w64-ucrt-x86_64-vapoursynth
+
+    - name: Build
+      run: |
+        meson build
+        ninja -C build
+        strip build/libiccc.dll
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: iccc
+        path: build/libiccc.dll
