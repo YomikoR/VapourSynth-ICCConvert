@@ -1,4 +1,4 @@
-project('ICCConvert', ['c', 'cpp', 'objc'],
+project('ICCConvert', ['c', 'cpp'],
     license: 'LGPL2.1+',
     default_options: ['buildtype=release', 'b_ndebug=if-release', 'c_std=c11', 'cpp_std=c++17', 'optimization=2'],
     meson_version: '>=0.51.0',
@@ -56,6 +56,7 @@ elif host_machine.system() == 'darwin'
     deps += dependency('lcms2')
     dep_cocoa = dependency('appleframeworks', modules: 'Cocoa', required: false)
     if dep_cocoa.found()
+        add_languages('objc', native: true)
         auto_profile_args += '-DAUTO_PROFILE_COCOA'
         deps += dep_cocoa
         shared_module('iccc_cocoa', 'src/detection/cocoa.m',

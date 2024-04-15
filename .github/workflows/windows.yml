@@ -25,7 +25,6 @@ jobs:
           base-devel
           git
           libtool
-          mingw-w64-ucrt-x86_64-gcc-objc
           mingw-w64-ucrt-x86_64-cmake
           mingw-w64-ucrt-x86_64-lcms2
           mingw-w64-ucrt-x86_64-meson
