@@ -312,7 +312,7 @@ static const VSFrame *VS_CC icccGetFrame(int n, int activationReason, void *inst
                 p2p_pack_frame(&p2p_src, 0);
             }
 
-            cmsDoTransformLineStride(transform, srcBuffer, dstBuffer, width, 1, srcStride * 3, dstStride * 3, 0, 0);
+            cmsDoTransformLineStride(transform, srcBuffer, dstBuffer, width, 1, srcStride * 3, dstStride * 3, srcStride * 1, dstStride * 1);
 
             if (d->outputP2PType == p2p_packing_max)
             {
@@ -462,7 +462,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         d->intent = itt;
     }
 
-    d->transformFlag = cmsFLAGS_NONEGATIVES;
+    d->transformFlag = srcFormat == pfRGBS ? 0 : cmsFLAGS_NONEGATIVES;
 
     const char *proofingProfilePath = vsapi->mapGetData(in, "proofing_icc", 0, &err);
     if (proofingProfilePath)
@@ -676,7 +676,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
         d->intent = itt;
     }
 
-    d->transformFlag = cmsFLAGS_NONEGATIVES;
+    d->transformFlag = srcFormat == pfRGBS ? 0 : cmsFLAGS_NONEGATIVES;
 
     bool blackPointCompensation = vsapi->mapGetInt(in, "black_point_compensation", 0, &err);
     if (err)
