@@ -23,18 +23,18 @@ iccc.Convert(clip,
   clut_size: int = 49,
   prefer_props: bool = True)
 ```
-- The format of input `clip` must be either `RGB24` or `RGB48`. The output has the same format.
+- The format of input `clip` must be `RGB24`, `RGB48` or `RGBS` (slow). The output has the same format.
 
 - `input_icc` is the path to the ICC profile of the clip (input profile for conversion).
 
   - When `prefer_props` is enabled, it is an *optional* fallback value for embedded ICC profiles read from frame properties.
-  - Can also set values `srgb`, `170m`, `709` or `2020` for a preset colorspace (will first attempt to treat as file name).
+  - See [Preset ICC values](#preset-icc-values) for preset values.
 
 - `display_icc` is the path to the ICC profile for the output, e.g. your monitor (output profile for conversion).
 
   - Auto detection features have been implemented on a few platforms.
   See [OS Dependent Notes](#os-dependent-notes). However, it's strongly recommended to manually specify the ICC profile for production purpose.
-  - Can also set values `srgb`, `170m`, `709` or `2020` for a preset colorspace (will first attempt to treat as file name).
+  - See [Preset ICC values](#preset-icc-values) for preset values.
 
  - `intent` refers to the ICC rendering intent for conversion from the input clip, see [this link](https://helpx.adobe.com/photoshop-elements/kb/color-management-settings-best-print.html#main-pars_header_1). Possible options are
    - "perceptual" for Perceptual
@@ -52,6 +52,8 @@ iccc.Convert(clip,
     - Absolute Colorimetric -> relative colorimetric intent, with undoing of chromatic adaptation.
 
  - `proofing_icc` is the path to the *optional* ICC profile for soft proofing, e.g. another monitor on which we are interested in the rendering. When a valid ICC profile is provided, the transform is taken in the soft proofing mode. When leaving it as the default `None`, a straightforward ICC transform is taken instead.
+
+   See [Preset ICC values](#preset-icc-values) for preset values.
  
    The following options only have effect in soft proofing mode:
 
@@ -106,11 +108,24 @@ This function ignores embedded ICC profiles in frame properties.
 ### Tag
 Embed given ICC profile to frame properties.
 ```python
-iccc.Tag(clip, icc: str)
+iccc.Tag(clip, icc: str, intent: str = None)
 ```
 The function loads profile `icc`, and saves it to `ICCProfile` frame properties.
 There's no format check on the input clip.
-Can also set `icc` as values `srgb`, `170m`, `709` or `2020` for a preset colorspace (will first attempt to treat as file name).
+
+Set `intent` to override the intent from the header of provided ICC profile.
+
+Can also set preset ICC values for `icc`, see [Preset ICC values](#preset-icc-values).
+
+### Preset ICC values
+Any argument asking for a path string to an ICC profile may be replaced by one of the following preset values.
+Note that the plugin will always first attempt to treat them as file names.
+
+ - `"srgb"`: Little CMS has built-in implementation similar to https://www.color.org/srgbprofiles.xalter#v2
+ - `"709"`
+ - `"170m"`
+ - `"2020"`: Should be used for SDR cases only
+ - `"xyz"`: Implementation similar to D50_XYZ.icc from https://www.color.org/XYZprofiles.xalter
 
 ---
 
