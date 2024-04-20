@@ -5,10 +5,6 @@
 #include <mutex>
 #include <memory>
 
-#ifndef TYPE_RGB_FLT_PLANAR
-#define TYPE_RGB_FLT_PLANAR (FLOAT_SH(1)|COLORSPACE_SH(PT_RGB)|CHANNELS_SH(3)|BYTES_SH(4)|PLANAR_SH(1))
-#endif
-
 constexpr double REC709_ALPHA = 1.09929682680944;
 constexpr double REC709_BETA = 0.018053968510807;
 
@@ -388,7 +384,7 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     else if (srcFormat == pfRGBS)
     {
-        d->inputDataType = TYPE_RGB_FLT_PLANAR;
+        d->inputDataType = TYPE_RGB_FLT | PLANAR_SH(1);
         d->outputDataType = d->inputDataType;
     }
     else
@@ -453,7 +449,10 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
 
     const char *intentString = vsapi->mapGetData(in, "intent", 0, &err);
     if (err || !intentString)
-        if (inputProfile) d->intent = cmsGetHeaderRenderingIntent(inputProfile);
+    {
+        if (inputProfile)
+            d->intent = cmsGetHeaderRenderingIntent(inputProfile);
+    }
     else
     {
         int itt = getIntent(intentString);
@@ -577,7 +576,7 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     }
     else if (srcFormat == pfRGBS)
     {
-        d->inputDataType = TYPE_RGB_FLT_PLANAR;
+        d->inputDataType = TYPE_RGB_FLT | PLANAR_SH(1);
         d->outputDataType = d->inputDataType;
     }
     else
