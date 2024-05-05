@@ -137,14 +137,13 @@ Please refer to the Meson build script or the MSVC project.
 
 ## OS Dependent Notes
 
-### Path limitations
+### Additional libraries
 
   For compatibility reasons, some functions are isolated into independent shared libraries:
   - `libiccc_colord.so` when built with Linux X11 and colord;
   - `libiccc_cocoa.dylib` when built in macOS with Cocoa.
   
-  These shared libraries are loaded by relative path to the main plugin, so their names should not be changed.
-  Otherwise auto ICC profile detection silently fails.
+  These shared libraries are loaded by the plugin to make auto ICC profile detection function.
 
 ### Display profile detection
 

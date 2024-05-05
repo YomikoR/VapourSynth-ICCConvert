@@ -11,18 +11,10 @@
 
 cmsHPROFILE getSystemProfile()
 {
-    // Get the relative path to libiccc_cocoa.dylib
-    Dl_info dl_info;
-    dladdr((void *)getSystemProfile, &dl_info);
-    char this_dll_path[4000];
-    strcpy(this_dll_path, dl_info.dli_fname);
-    char *this_dll_dir = dirname(this_dll_path);
-    char cocoa_dll_path[4000];
-    sprintf(cocoa_dll_path, "%s/libiccc_cocoa.dylib", this_dll_dir);
-
-    void *dll_handle = dlopen(cocoa_dll_path, RTLD_LAZY);
+    void *dll_handle = dlopen("libiccc_cocoa.dylib", RTLD_LAZY);
     if (!dll_handle)
     {
+        fprintf(stderr, "loading iccc_cocoa failed: %s\n", dlerror());
         return NULL;
     }
 

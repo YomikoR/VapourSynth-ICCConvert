@@ -47,7 +47,8 @@ if host_machine.system() == 'linux'
             shared_module('iccc_colord', 'src/detection/colord.c',
                 dependencies: dep_colord,
                 c_args: auto_profile_args,
-                name_prefix: 'lib'
+                name_prefix: 'lib',
+                install: true
             )
         endif
         sources += ['src/detection/x11.c']
@@ -62,7 +63,8 @@ elif host_machine.system() == 'darwin'
         shared_module('iccc_cocoa', 'src/detection/cocoa.m',
             dependencies: dependency('lcms2'),
             objc_args: auto_profile_args,
-            name_prefix: 'lib'
+            name_prefix: 'lib',
+            install: true
         )
         sources += ['src/detection/macos.c']
     endif

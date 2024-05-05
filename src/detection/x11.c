@@ -139,23 +139,13 @@ cmsHPROFILE getSystemProfile()
 
 # if defined (AUTO_PROFILE_COLORD)
 
-    // Get the relative path to libiccc_colord.so
-
-    Dl_info dl_info;
-    dladdr((void *)getSystemProfile, &dl_info);
-    char this_dll_path[4000];
-    strcpy(this_dll_path, dl_info.dli_fname);
-    char *this_dll_dir = dirname(this_dll_path);
-    char colord_dll_path[4000];
-    sprintf(colord_dll_path, "%s/libiccc_colord.so", this_dll_dir);
-
     char *icc_file = NULL;
 
-    // Load shared library
+    void *dll_handle = dlopen("libiccc_colord.so", RTLD_LAZY);
 
-    void *dll_handle = dlopen(colord_dll_path, RTLD_LAZY);
     if (!dll_handle)
     {
+        fprintf(stderr, "loading iccc_colord failed: %s\n", dlerror());
         XCloseDisplay(dpy);
         return NULL;
     }
