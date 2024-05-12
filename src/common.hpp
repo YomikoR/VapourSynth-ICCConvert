@@ -3,6 +3,7 @@
 
 #define CMS_NO_REGISTER_KEYWORD 1
 #include <lcms2.h>
+#include <lcms2_fast_float.h>
 #include "vapoursynth/VapourSynth4.h"
 #include "vapoursynth/VSHelper4.h"
 
