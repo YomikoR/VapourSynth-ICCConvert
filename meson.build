@@ -5,6 +5,8 @@ project('ICCConvert', ['c', 'cpp'],
     version: '6.2'
 )
 
+c = meson.get_compiler('c')
+
 sources = [
     'src/iccc.cc',
     'src/1886.cc',
@@ -16,6 +18,8 @@ deps = []
 libs = []
 
 auto_profile_args = []
+
+plugin_args = []
 
 link_args = []
 
@@ -53,6 +57,11 @@ if host_machine.system() == 'linux'
         endif
         sources += ['src/detection/x11.c']
     endif
+    dep_fastfloat = c.find_library('lcms2_fast_float', required: false)
+    if dep_fastfloat.found()
+        plugin_args += '-DUSE_LCMS2_FAST_FLOAT'
+        link_args += '-llcms2_fast_float'
+    endif
 elif host_machine.system() == 'darwin'
     deps += dependency('lcms2')
     dep_cocoa = dependency('appleframeworks', modules: 'Cocoa', required: false)
@@ -68,9 +77,15 @@ elif host_machine.system() == 'darwin'
         )
         sources += ['src/detection/macos.c']
     endif
+    dep_fastfloat = c.find_library('lcms2_fast_float', required: false)
+    if dep_fastfloat.found()
+        plugin_args += '-DUSE_LCMS2_FAST_FLOAT'
+        link_args += '-llcms2_fast_float'
+    endif
 elif host_machine.system() == 'windows'
     deps += dependency('lcms2', static: true)
     sources += ['src/detection/win32.c']
+    plugin_args += '-DUSE_LCMS2_FAST_FLOAT'
     link_args += '-static'
 endif
 
@@ -78,7 +93,7 @@ shared_module('iccc', sources,
     include_directories: 'src',
     dependencies: deps,
     c_args: auto_profile_args,
-    cpp_args: auto_profile_args,
+    cpp_args: [auto_profile_args, plugin_args],
     link_with: libs,
     link_args: link_args,
     name_prefix: 'lib',

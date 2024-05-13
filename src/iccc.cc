@@ -386,7 +386,9 @@ void VS_CC icccCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     {
         d->inputDataType = TYPE_RGB_FLT | PLANAR_SH(1);
         d->outputDataType = d->inputDataType;
+#ifdef USE_LCMS2_FAST_FLOAT
         cmsPlugin(cmsFastFloatExtensions());
+#endif
     }
     else
         return filterError("iccc: Currently only RGB24, RGB48 and RGBS input formats are well supported.");
@@ -579,7 +581,9 @@ void VS_CC iccpCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core,
     {
         d->inputDataType = TYPE_RGB_FLT | PLANAR_SH(1);
         d->outputDataType = d->inputDataType;
+#ifdef USE_LCMS2_FAST_FLOAT
         cmsPlugin(cmsFastFloatExtensions());
+#endif
     }
     else
         return filterError("iccc: Currently only RGB24 and RGB48 input formats are well supported.");
