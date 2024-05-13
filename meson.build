@@ -1,8 +1,8 @@
 project('ICCConvert', ['c', 'cpp'],
-    license: 'LGPL2.1+',
+    license: 'GPL-3.0-or-later',
     default_options: ['buildtype=release', 'b_ndebug=if-release', 'c_std=c11', 'cpp_std=c++17', 'optimization=2'],
     meson_version: '>=0.51.0',
-    version: '6.1'
+    version: '6.2'
 )
 
 sources = [
