@@ -179,8 +179,8 @@ static PresetProfile createPresetProfile(const char *name)
             {0.0, 1.0, 1.0},
             {0.0, 0.0, 1.0},
         };
-        cmsFloat64Number paramsX[3] = {1.0, 1.0 / 0.964212, 0.0};
-        cmsFloat64Number paramsZ[3] = {1.0, 1.0 / 0.825188, 0.0};
+        cmsFloat64Number paramsX[3] = {1.0, 1.0 / cmsD50X, 0.0};
+        cmsFloat64Number paramsZ[3] = {1.0, 1.0 / cmsD50Z, 0.0};
         cmsToneCurve *curveX = cmsBuildParametricToneCurve(nullptr, 2, paramsX);
         cmsToneCurve *curveY = cmsBuildGamma(nullptr, 1.0);
         cmsToneCurve *curveZ = cmsBuildParametricToneCurve(nullptr, 2, paramsZ);
