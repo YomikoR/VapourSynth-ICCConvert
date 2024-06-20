@@ -1,3 +1,0 @@
-[submodule "src/libp2p"]
-	path = src/libp2p
-	url = https://github.com/sekrit-twc/libp2p
