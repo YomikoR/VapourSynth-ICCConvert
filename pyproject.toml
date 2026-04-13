@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling>=1.27.0", "meson", "ninja", "packaging"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vapoursynth-iccconvert"
+description = "Little CMS based color management for VapourSynth"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = ["vapoursynth>=74"]
+dynamic = ["version"]
+
+[project.urls]
+"Source Code" = "https://github.com/YomikoR/VapourSynth-ICCConvert"
+
+[tool.hatch.version]
+path = "meson.build"
+pattern = "version: '(?P<version>\\d*.\\d*)'"
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "meson.build"]
+
+[tool.hatch.build.targets.wheel]
+include = ["vapoursynth/plugins"]
+artifacts = [
+    "vapoursynth/plugins/**/*.dylib",
+    "vapoursynth/plugins/**/*.so",
+    "vapoursynth/plugins/*.dll",
+]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_build.py"
