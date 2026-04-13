@@ -11,9 +11,8 @@ jobs:
         shell: msys2 {0}
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
+    - name: Checkout repo
+      uses: actions/checkout@v6
 
     - uses: msys2/setup-msys2@v2
       with:
@@ -37,7 +36,8 @@ jobs:
         ninja -C build
         strip build/libiccc.dll
 
-    - uses: actions/upload-artifact@v4
+    - name: Upload artifact
+      uses: actions/upload-artifact@v7
       with:
         name: iccc
         path: build/libiccc.dll
