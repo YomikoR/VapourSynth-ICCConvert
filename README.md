@@ -4,6 +4,16 @@ Little CMS based ICC profile simulation for VapourSynth.
 
 ---
 
+## Install
+
+For VapourSynth R74 and later:
+  - Windows: from vsrepo, or install the wheel in the release page.
+  - *nix: `pip install git+https://github.com/YomikoR/VapourSynth-ICCConvert.git` (requires lcms2 library)
+
+For earlier versions of VapourSynth:
+  - Windows: from vsrepo
+  - *nix: `meson setup build && ninja -C build install`
+
 ## Usage
 
 ### Convert
