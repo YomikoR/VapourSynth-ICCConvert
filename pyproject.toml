@@ -20,7 +20,7 @@ path = "meson.build"
 pattern = "version: '(?P<version>\\d*.\\d*)'"
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "meson.build"]
+include = ["src", "meson.build", "manifest.vs"]
 
 [tool.hatch.build.targets.wheel]
 include = ["vapoursynth/plugins"]
